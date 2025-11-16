@@ -141,17 +141,20 @@ class AuthService {
     required String email,
     required String password,
     required String name,
-    required String role,
-    String? licenseUrl,
-    File? licenseFile,
+    required String role, // always "doctor"
     required String specialization,
-    required bool isVerified,
-    required String doctorType,
-    required String s,
-    File? profileFile, // labDoctor / consultingDoctor
+    required bool isVerified, // false for new doctor
+    required String doctorType, // pending / approved
+    required String s, // labDoctor / consultingDoctor
+    required String licenseUrl, // FIXED
+    required String profileUrl,
+    required licenseFile,
+    required String licenseFileUrl,
+    File? profileFile,
+    required String profileFileUrl, // FIXED
   }) async {
     try {
-      // 1️⃣ Create user in Firebase Auth
+      // Create user
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -159,39 +162,36 @@ class AuthService {
 
       final uid = result.user!.uid;
 
-      if (role == 'doctor') {
-        // 2️⃣ Save doctor info under "doctors" node
-        final userRef = _db.child("doctors").child(uid);
+      // Save doctor data
+      final doctorRef = _db.child("doctors").child(uid);
 
-        await userRef.set({
-          'uid': uid,
-          'firstName': name,
-          'email': email,
-          'role': role,
-          'doctorRole': s,
-          'licenseUrl': licenseUrl ?? '',
-          'specialization': specialization,
-          'status': doctorType,
-          'isVerified': isVerified,
-          'fcmToken': '',
-          'createdAt': DateTime.now().toIso8601String(),
-        });
-      } else {
-        // 2️⃣ Save normal users under "users" node
-        final userRef = _db.child("users").child(uid);
+      await doctorRef.set({
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'role': "doctor", // doctor main role
+        'doctorRole': s, // consultingDoctor / labDoctor
+        'licenseUrl': licenseUrl, // NOW CORRECT
+        'profileUrl': profileUrl, // NOW CORRECT
+        'specialization': specialization,
+        'status': doctorType, // pending / approved
+        'isVerified': isVerified,
+        'fcmToken': '',
+        'createdAt': DateTime.now().toIso8601String(),
+      });
 
-        await userRef.set({
-          'uid': uid,
-          'name': name,
-          'email': email,
-          'role': role,
-          'isVerified': true,
-          'createdAt': DateTime.now().toIso8601String(),
-        });
+      /// Save FCM token specifically for doctors
+      Future<void> saveDoctorToken(String uid) async {
+        String? token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          await FirebaseDatabase.instance.ref("doctors/$uid").update({
+            "fcmToken": token,
+          });
+        }
       }
 
-      // 3️⃣ Save FCM token after registration
-      await saveUserToken();
+      // Save token correctly for doctors
+      await saveDoctorToken(uid);
 
       return true;
     } catch (e) {

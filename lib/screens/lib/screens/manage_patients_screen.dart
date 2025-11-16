@@ -14,7 +14,7 @@ class ManagePatientsScreen extends StatefulWidget {
 
 class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
   final DatabaseReference _patientsRef = FirebaseDatabase.instance.ref().child(
-    'patients',
+    'users',
   );
   final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
       .ref()
@@ -128,6 +128,10 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
 
     for (var entry in patientsMap.entries) {
       final data = Map<String, dynamic>.from(entry.value as Map);
+
+      // ✅ Only include patients
+      if ((data['role'] ?? 'patient') != 'patient') continue;
+
       data['patientId'] = entry.key;
 
       if (data['name'] == "Unknown") {

@@ -7,7 +7,7 @@ import 'package:dr_shahin_uk/screens/shared/verify_pending.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:dr_shahin_uk/services/notification_service.dart'; // new service
+import 'package:dr_shahin_uk/services/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -56,6 +56,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       String role = data['role'] ?? '';
+      String doctorType = data['doctorType'] ?? '';
+
+      /// -------------------- ROLE FIX FOR DOCTORS --------------------
+      if (role == 'doctor') {
+        if (doctorType == 'labDoctor') {
+          role = 'labDoctor';
+        } else if (doctorType == 'consultingDoctor') {
+          role = 'consultingDoctor';
+        }
+      }
+
       bool isVerified = data['isVerified'] is bool
           ? data['isVerified']
           : (data['isVerified'].toString().toLowerCase() == 'true');
@@ -83,9 +94,9 @@ class _LoginScreenState extends State<LoginScreen> {
         'admin': const AdminDashboard(),
       };
 
-      // ✅ Unverified doctors → VerifyPending
+      // Unverified doctors → VerifyPending screen
       if ((role == 'labDoctor' || role == 'consultingDoctor') && !isVerified) {
-        await _onLoginSuccess(context); // save token & setup FCM
+        await _onLoginSuccess(context);
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
           context,
@@ -94,9 +105,9 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // ✅ Verified users → dashboard
+      // Verified user → dashboard
       if (dashboardMap.containsKey(role)) {
-        await _onLoginSuccess(context); // save token & setup FCM
+        await _onLoginSuccess(context);
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
           context,
@@ -114,9 +125,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// -------------------- SAVE TOKEN & FCM --------------------
   Future<void> _onLoginSuccess(BuildContext context) async {
-    await NotificationService.saveUserToken(); // save FCM token
+    await NotificationService.saveUserToken();
     // ignore: use_build_context_synchronously
-    NotificationService.setupFCMListeners(context); // foreground notifications
+    NotificationService.setupFCMListeners(context);
   }
 
   /// -------------------- RESET PASSWORD --------------------
@@ -171,7 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 32,
                               fontWeight: FontWeight.w600,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 5),
                           const Text(
@@ -181,18 +191,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontWeight: FontWeight.w400,
                               color: Colors.black54,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 30),
+
                           if (error.isNotEmpty)
                             Text(
                               error,
                               style: const TextStyle(color: Colors.red),
-                              textAlign: TextAlign.center,
                             ),
+
                           const SizedBox(height: 10),
 
-                          // Email
+                          /// EMAIL
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -221,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // Password
+                          /// PASSWORD
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -243,9 +253,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                         : Icons.visibility,
                                     color: Colors.grey.shade400,
                                   ),
-                                  onPressed: () => setState(
-                                    () => _obscureText = !_obscureText,
-                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscureText = !_obscureText;
+                                    });
+                                  },
                                 ),
                               ),
                               obscureText: _obscureText,
@@ -277,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          // Login Button
+                          /// LOGIN BUTTON
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -302,9 +314,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 20),
 
-                          // Register Navigation
                           TextButton(
                             onPressed: () => Navigator.of(context).push(
                               MaterialPageRoute(

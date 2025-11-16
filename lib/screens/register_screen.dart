@@ -39,7 +39,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       specialization: '',
       isVerified: false,
       doctorType: '',
-      s: '', // only for doctors
+      s: '',
+      licenseFileUrl: '',
+      licenseUrl: '',
+      profileUrl: '',
+      profileFileUrl: '', // only for doctors
     );
 
     if (!mounted) return;

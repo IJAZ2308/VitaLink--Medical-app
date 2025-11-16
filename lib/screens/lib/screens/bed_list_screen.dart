@@ -35,6 +35,7 @@ class BedListScreenState extends State<BedListScreen> {
     super.dispose();
   }
 
+  /// Fetch hospitals from Firebase in real-time
   void _fetchHospitalsRealtime() {
     _dbRef.onValue.listen((event) {
       final data = event.snapshot.value;
@@ -47,10 +48,12 @@ class BedListScreenState extends State<BedListScreen> {
           hospital['id'] = key;
           hospital['doctorId'] =
               value['doctorId'] ?? value['adminId'] ?? 'unknown';
+
           tempHospitals.add(hospital);
         });
       }
 
+      // Filter by distance if location available
       if (_currentPosition != null) {
         tempHospitals = tempHospitals.where((hospital) {
           if (hospital['latitude'] != null && hospital['longitude'] != null) {
@@ -61,10 +64,17 @@ class BedListScreenState extends State<BedListScreen> {
               hospital['longitude'],
             );
             hospital['distance'] = (distance / 1000).toStringAsFixed(2);
-            return distance <= 5000;
+            return true; // include all for sorting
           }
           return false;
         }).toList();
+
+        // Sort by distance ascending
+        tempHospitals.sort((a, b) {
+          double distA = double.tryParse(a['distance'] ?? "9999") ?? 9999;
+          double distB = double.tryParse(b['distance'] ?? "9999") ?? 9999;
+          return distA.compareTo(distB);
+        });
       }
 
       setState(() {
@@ -73,6 +83,7 @@ class BedListScreenState extends State<BedListScreen> {
     });
   }
 
+  /// Initialize location stream to track user location
   Future<void> _initLocationStream() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -82,7 +93,6 @@ class BedListScreenState extends State<BedListScreen> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
-
     if (permission == LocationPermission.deniedForever) return;
 
     _positionSubscription =
@@ -97,6 +107,7 @@ class BedListScreenState extends State<BedListScreen> {
         });
   }
 
+  /// Open URL in browser
   Future<void> _launchUrl(String urlString) async {
     final uri = Uri.parse(urlString);
     if (await canLaunchUrl(uri)) {
@@ -112,41 +123,28 @@ class BedListScreenState extends State<BedListScreen> {
 
   Future<void> _launchWebsite(String url) async => _launchUrl(url);
 
-  // ✅ Fix: safely parse beds values
-  int _getTotalBeds(Map<String, dynamic> hospital) {
-    final beds = hospital['beds'];
-    if (beds is Map) {
-      return beds.values.fold(0, (prev, value) {
-        if (value is int) return prev + value;
-        if (value is double) return prev + value.toInt();
-        if (value is String) return prev + (int.tryParse(value) ?? 0);
-        return prev;
-      });
-    }
+  /// Recursive bed parser to handle Map, int, String, nested Maps
+  int _getTotalBeds(dynamic beds) {
+    if (beds == null) return 0;
     if (beds is int) return beds;
+    if (beds is double) return beds.toInt();
     if (beds is String) return int.tryParse(beds) ?? 0;
+    if (beds is Map) {
+      return beds.values.fold(0, (prev, value) => prev + _getTotalBeds(value));
+    }
     return 0;
   }
 
-  Widget _buildBedCount(Map<String, dynamic> hospital) {
-    final beds = hospital['beds'];
+  /// Build bed count widget with color highlighting zero beds
+  Widget _buildBedCount(dynamic beds) {
+    if (beds == null) {
+      return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
+    }
     if (beds is Map) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: beds.entries.map((entry) {
-          int count = 0;
-          final value = entry.value;
-          if (value is int) {
-            count = value;
-            // ignore: curly_braces_in_flow_control_structures
-          } else if (value is double)
-            // ignore: curly_braces_in_flow_control_structures
-            count = value.toInt();
-          // ignore: curly_braces_in_flow_control_structures
-          else if (value is String)
-            // ignore: curly_braces_in_flow_control_structures
-            count = int.tryParse(value) ?? 0;
-
+          int count = _getTotalBeds(entry.value);
           return Text(
             "${entry.key.toUpperCase()} Beds: $count",
             style: TextStyle(
@@ -156,18 +154,15 @@ class BedListScreenState extends State<BedListScreen> {
           );
         }).toList(),
       );
-    } else if (beds != null) {
-      int count = 0;
-      if (beds is int) {
-        count = beds;
-        // ignore: curly_braces_in_flow_control_structures
-      } else if (beds is String)
-        // ignore: curly_braces_in_flow_control_structures
-        count = int.tryParse(beds) ?? 0;
-
-      return Text("Total Beds: $count", style: const TextStyle(fontSize: 14));
     } else {
-      return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
+      int count = _getTotalBeds(beds);
+      return Text(
+        "Total Beds: $count",
+        style: TextStyle(
+          fontSize: 14,
+          color: count == 0 ? Colors.red : Colors.black,
+        ),
+      );
     }
   }
 
@@ -214,7 +209,7 @@ class BedListScreenState extends State<BedListScreen> {
                     itemCount: hospitals.length,
                     itemBuilder: (context, index) {
                       final hospital = hospitals[index];
-                      final totalBeds = _getTotalBeds(hospital);
+                      final totalBeds = _getTotalBeds(hospital['beds']);
 
                       return Card(
                         margin: const EdgeInsets.all(10),
@@ -238,7 +233,7 @@ class BedListScreenState extends State<BedListScreen> {
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildBedCount(hospital),
+                                    _buildBedCount(hospital['beds']),
                                     if (hospital.containsKey('distance'))
                                       Text(
                                         "Distance: ${hospital['distance']} km",

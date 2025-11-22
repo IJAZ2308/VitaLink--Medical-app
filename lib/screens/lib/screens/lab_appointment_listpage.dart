@@ -12,14 +12,14 @@ class LabAppointmentListPage extends StatefulWidget {
 class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
   final DatabaseReference _appointmentsRef = FirebaseDatabase.instance
       .ref()
-      .child('appointments');
+      .child('labAppointments');
   final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
     'users',
   );
 
   final String labDoctorId = FirebaseAuth.instance.currentUser!.uid;
   bool _loading = true;
-  List<Map<String, String>> _appointments = [];
+  List<Map<String, dynamic>> _appointments = [];
 
   @override
   void initState() {
@@ -30,7 +30,7 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
   void _listenForLabAppointments() {
     _appointmentsRef.onValue.listen((event) async {
       final snapshot = event.snapshot;
-      List<Map<String, String>> loadedAppointments = [];
+      List<Map<String, dynamic>> loadedAppointments = [];
 
       if (snapshot.exists) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
@@ -38,47 +38,47 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
         for (var entry in data.entries) {
           final appointment = Map<String, dynamic>.from(entry.value);
 
-          // Include only those requiring a lab report
-          if (appointment['requiresLabReport'] == true) {
-            // Show only if assigned to this lab or pending assignment
-            if (appointment['labDoctorId'] == labDoctorId ||
-                appointment['labDoctorId'] == null) {
-              String patientName = "Unknown";
-              String treatingDoctorName = "Unknown";
+          // Filter appointments assigned to this lab doctor
+          if (appointment['labDoctorId'] == labDoctorId ||
+              appointment['labDoctorId'] == null) {
+            String patientName = "Unknown";
+            String requestingDoctorName = "Unknown";
 
-              // Fetch patient name
-              if (appointment['patientId'] != null) {
-                final patientSnap = await _usersRef
-                    .child(appointment['patientId'])
-                    .get();
-                if (patientSnap.exists) {
-                  final pdata = Map<String, dynamic>.from(
-                    patientSnap.value as Map,
-                  );
-                  patientName = pdata['name'] ?? "Unknown";
-                }
+            // Fetch patient name
+            if (appointment['patientId'] != null) {
+              final patientSnap = await _usersRef
+                  .child(appointment['patientId'])
+                  .get();
+              if (patientSnap.exists) {
+                final pdata = Map<String, dynamic>.from(
+                  patientSnap.value as Map,
+                );
+                patientName = pdata['name'] ?? "Unknown";
               }
-
-              // Fetch treating doctor name
-              if (appointment['doctorId'] != null) {
-                final docSnap = await _usersRef
-                    .child(appointment['doctorId'])
-                    .get();
-                if (docSnap.exists) {
-                  final ddata = Map<String, dynamic>.from(docSnap.value as Map);
-                  treatingDoctorName = ddata['name'] ?? "Unknown";
-                }
-              }
-
-              loadedAppointments.add({
-                'id': entry.key,
-                'patientName': patientName,
-                'treatingDoctorName': treatingDoctorName,
-                'date': appointment['date'] ?? '',
-                'time': appointment['time'] ?? '',
-                'status': appointment['status'] ?? '',
-              });
             }
+
+            // Fetch requesting doctor name
+            if (appointment['doctorId'] != null) {
+              final doctorSnap = await _usersRef
+                  .child(appointment['doctorId'])
+                  .get();
+              if (doctorSnap.exists) {
+                final ddata = Map<String, dynamic>.from(
+                  doctorSnap.value as Map,
+                );
+                requestingDoctorName = ddata['name'] ?? "Unknown";
+              }
+            }
+
+            loadedAppointments.add({
+              'id': entry.key,
+              'patientName': patientName,
+              'requestingDoctorName': requestingDoctorName,
+              'date': appointment['appointmentDate'] ?? '',
+              'time': appointment['timeSlot'] ?? '',
+              'testType': appointment['reason'] ?? 'Lab Test',
+              'status': appointment['status'] ?? 'Pending',
+            });
           }
         }
       }
@@ -88,6 +88,37 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
         _loading = false;
       });
     });
+  }
+
+  void _updateStatus(String appointmentId, String newStatus) async {
+    await _appointmentsRef.child(appointmentId).update({'status': newStatus});
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text("Status updated to $newStatus")));
+  }
+
+  void _showStatusDialog(Map<String, dynamic> appointment) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Update Status"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: ["Pending", "In Progress", "Completed", "Cancelled"]
+              .map(
+                (status) => ListTile(
+                  title: Text(status),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _updateStatus(appointment['id'], status);
+                  },
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -126,13 +157,19 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 6.0),
                       child: Text(
-                        "Requested by: ${appt['treatingDoctorName']}\n"
+                        "Requested by: ${appt['requestingDoctorName']}\n"
+                        "Test: ${appt['testType']}\n"
                         "Date: ${appt['date']} at ${appt['time']}\n"
                         "Status: ${appt['status']}",
                         style: const TextStyle(height: 1.4),
                       ),
                     ),
                     isThreeLine: true,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.deepPurple),
+                      tooltip: "Update Status",
+                      onPressed: () => _showStatusDialog(appt),
+                    ),
                   ),
                 );
               },

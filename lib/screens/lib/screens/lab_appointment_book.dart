@@ -45,7 +45,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)), // dynamic
+      lastDate: DateTime.now().add(const Duration(days: 90)),
     );
     if (date != null) setState(() => _selectedDate = date);
   }
@@ -59,11 +59,18 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   }
 
   void _bookLabAppointment() async {
-    if (_selectedDate == null ||
-        _selectedTime == null ||
-        (_reasonController.text.isEmpty && _selectedTest == null)) {
+    if (_selectedDate == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all required fields")),
+        const SnackBar(content: Text("Please select date and time")),
+      );
+      return;
+    }
+
+    if ((_reasonController.text.isEmpty) && (_selectedTest == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please provide a reason or select a lab test"),
+        ),
       );
       return;
     }
@@ -79,9 +86,8 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       'doctorName': widget.doctorName,
       'appointmentDate': dateStr,
       'timeSlot': timeStr,
-      'reason': _reasonController.text.isNotEmpty
-          ? _reasonController.text
-          : _selectedTest ?? "Lab Test",
+      'testType': _selectedTest ?? "Lab Test",
+      'reason': _reasonController.text,
       'status': 'Pending',
       'createdAt': DateTime.now().toIso8601String(),
     });
@@ -109,11 +115,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
             DropdownButtonFormField<String>(
               value: _selectedTest,
               hint: const Text("Select Lab Test (optional)"),
-              items: _labTests
-                  .map(
-                    (test) => DropdownMenuItem(value: test, child: Text(test)),
-                  )
-                  .toList(),
+              items: _labTests.map((test) {
+                return DropdownMenuItem(value: test, child: Text(test));
+              }).toList(),
               onChanged: (val) => setState(() => _selectedTest = val),
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),

@@ -11,9 +11,9 @@ class PatLabAppointment extends StatefulWidget {
 
 class _PatLabAppointmentState extends State<PatLabAppointment> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _appointmentsDb = FirebaseDatabase.instance
-      .ref()
-      .child('appointments');
+  final DatabaseReference _labTestsDb = FirebaseDatabase.instance.ref().child(
+    'labAppointment',
+  );
   final DatabaseReference _usersDb = FirebaseDatabase.instance.ref().child(
     'users',
   );
@@ -31,8 +31,9 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
     setState(() => _isLoading = true);
     final patientId = _auth.currentUser!.uid;
 
-    final snapshot = await _appointmentsDb
-        .orderByChild('patientId') // fetch appointments by patientId
+    // Fetch lab tests for this patient
+    final snapshot = await _labTestsDb
+        .orderByChild('patientId')
         .equalTo(patientId)
         .get();
 
@@ -41,25 +42,22 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
     if (snapshot.exists) {
       final data = Map<String, dynamic>.from(snapshot.value as Map);
       for (var key in data.keys) {
-        final appt = Map<String, dynamic>.from(data[key]);
-
-        final requestingDoctorId = appt['requestingDoctorId'] ?? '';
-        final labDoctorId = appt['labDoctorId'] ?? '';
+        final test = Map<String, dynamic>.from(data[key]);
 
         // Fetch requesting doctor name
         String requestingDoctorName = 'Unknown';
+        final requestingDoctorId = test['requestingDoctorId'] ?? '';
         if (requestingDoctorId.isNotEmpty) {
-          final doctorSnap = await _usersDb.child(requestingDoctorId).get();
-          if (doctorSnap.exists) {
-            final doctorData = Map<String, dynamic>.from(
-              doctorSnap.value as Map,
-            );
-            requestingDoctorName = doctorData['name'] ?? 'Doctor';
+          final docSnap = await _usersDb.child(requestingDoctorId).get();
+          if (docSnap.exists) {
+            final docData = Map<String, dynamic>.from(docSnap.value as Map);
+            requestingDoctorName = docData['name'] ?? 'Doctor';
           }
         }
 
         // Fetch lab doctor name
         String labDoctorName = 'Unknown';
+        final labDoctorId = test['labDoctorId'] ?? '';
         if (labDoctorId.isNotEmpty) {
           final labSnap = await _usersDb.child(labDoctorId).get();
           if (labSnap.exists) {
@@ -71,9 +69,10 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
         loadedAppointments.add({
           'labDoctorName': labDoctorName,
           'requestingDoctorName': requestingDoctorName,
-          'status': appt['status'] ?? 'Pending',
-          'date': appt['date'] ?? '',
-          'time': appt['time'] ?? '',
+          'status': test['status'] ?? 'Pending',
+          'date': test['date'] ?? '',
+          'time': test['time'] ?? '',
+          'testType': test['testType'] ?? '',
         });
       }
     }
@@ -105,7 +104,9 @@ class _PatLabAppointmentState extends State<PatLabAppointment> {
                     horizontal: 16,
                   ),
                   child: ListTile(
-                    title: Text("Lab Doctor: ${appt['labDoctorName']}"),
+                    title: Text(
+                      "Lab Doctor: ${appt['labDoctorName']} (${appt['testType']})",
+                    ),
                     subtitle: Text(
                       "Requested by: ${appt['requestingDoctorName']}\n"
                       "Date: ${appt['date']} ${appt['time']}\n"

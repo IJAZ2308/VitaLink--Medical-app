@@ -27,12 +27,22 @@ class _SharedReportsScreenState extends State<SharedReportsScreen> {
 
   Future<void> _fetchSharedReports() async {
     final userId = _auth.currentUser!.uid;
-    final snapshot = await _db.child('patients/$userId/sharedReports').get();
+    final snapshot = await _db.child('report').get(); // Central report node
 
     if (snapshot.exists && snapshot.value != null) {
+      final allReports = Map<String, dynamic>.from(snapshot.value as Map);
+      final patientReports = <String, dynamic>{};
+
+      allReports.forEach((key, value) {
+        final report = Map<String, dynamic>.from(value);
+        if (report['patientId'] == userId) {
+          patientReports[key] = report;
+        }
+      });
+
       if (!mounted) return;
       setState(() {
-        _sharedReports = Map<String, dynamic>.from(snapshot.value as Map);
+        _sharedReports = patientReports;
         _loading = false;
       });
     } else {
@@ -61,17 +71,12 @@ class _SharedReportsScreenState extends State<SharedReportsScreen> {
                     vertical: 6,
                   ),
                   child: ListTile(
-                    title: const Text("Doctor Report"),
+                    title: Text(report['reportName'] ?? "Doctor Report"),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (report['doctorNotes'] != null &&
-                            report['doctorNotes'].isNotEmpty)
-                          Text("Notes: ${report['doctorNotes']}"),
-                        if (report['timestamp'] != null)
-                          Text(
-                            "Date: ${DateTime.parse(report['timestamp']).toLocal().toString().split('.')[0]}",
-                          ),
+                        if (report['uploadedOn'] != null)
+                          Text("Date: ${report['uploadedOn']}"),
                       ],
                     ),
                     trailing: IconButton(

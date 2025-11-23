@@ -3,7 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class LabAppointmentListPage extends StatefulWidget {
-  const LabAppointmentListPage({super.key});
+  const LabAppointmentListPage({
+    super.key,
+    required String patientId,
+    required String patientName,
+    required String doctorId,
+    required String doctorName,
+  });
 
   @override
   State<LabAppointmentListPage> createState() => _LabAppointmentListPageState();
@@ -18,6 +24,7 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
   );
 
   final String labDoctorId = FirebaseAuth.instance.currentUser!.uid;
+
   bool _loading = true;
   List<Map<String, dynamic>> _appointments = [];
 
@@ -38,7 +45,7 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
         for (var entry in data.entries) {
           final appointment = Map<String, dynamic>.from(entry.value);
 
-          // Filter appointments assigned to this lab doctor
+          // Show only appointments assigned to this lab doctor or unassigned
           if (appointment['labDoctorId'] == labDoctorId ||
               appointment['labDoctorId'] == null) {
             String patientName = "Unknown";
@@ -76,7 +83,7 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
               'requestingDoctorName': requestingDoctorName,
               'date': appointment['appointmentDate'] ?? '',
               'time': appointment['timeSlot'] ?? '',
-              'testType': appointment['reason'] ?? 'Lab Test',
+              'testType': appointment['testType'] ?? 'Lab Test',
               'status': appointment['status'] ?? 'Pending',
             });
           }

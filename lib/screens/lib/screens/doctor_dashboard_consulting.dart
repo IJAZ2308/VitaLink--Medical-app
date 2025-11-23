@@ -1,10 +1,11 @@
+import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_book.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
-import 'package:dr_shahin_uk/screens/view_documents_screen.dart';
+
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
 
@@ -170,7 +171,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text("Select Patient to Upload Document"),
+          title: const Text("Lab Appointment Booking"),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -186,10 +187,11 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => UploadDocumentScreen(
+                        builder: (_) => LabAppointmentPage(
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
                           doctorId: doctorId,
+                          doctorName: '',
                         ),
                       ),
                     );
@@ -215,7 +217,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text("Select Patient to View Documents"),
+          title: const Text("View Lab Appointments for Patient"),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -231,7 +233,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ViewDocumentsScreen(
+                        builder: (_) => LabAppointmentListPage(
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
                           doctorId: doctorId,
@@ -258,12 +260,18 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final Color primary = const Color(0xff0064FA);
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: primary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xff0064FA), Color(0xff00C6FF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         title: Text("Welcome, $_doctorName"),
         actions: [
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
@@ -274,13 +282,16 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Dashboard Header
+            // Gradient Header
             Container(
               padding: const EdgeInsets.all(20),
               width: double.infinity,
               decoration: BoxDecoration(
-                // ignore: deprecated_member_use
-                color: primary.withOpacity(0.9),
+                gradient: const LinearGradient(
+                  colors: [Color(0xff0064FA), Color(0xff00C6FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -292,9 +303,9 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     size: 40,
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  const Text(
                     "Consulting Doctor Dashboard",
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -309,7 +320,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
             ),
             const SizedBox(height: 20),
 
-            // Grid Menu (LabDashboard Style)
+            // Gradient Grid Menu
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -317,40 +328,44 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
               children: [
-                _dashboardCard(Icons.event, "Appointments", Colors.green, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DoctorAppointmentsRealtimePage(),
-                    ),
-                  );
-                }),
                 _dashboardCard(
-                  Icons.upload_file,
-                  "Upload Reports",
+                  Icons.event,
+                  "Appointments",
+                  [Colors.green, Colors.lightGreen],
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DoctorAppointmentsRealtimePage(),
+                      ),
+                    );
+                  },
+                ),
+                _dashboardCard(Icons.upload_file, "Upload Reports", [
                   Colors.red,
-                  _pickPatientAndUpload,
-                ),
-                _dashboardCard(
-                  Icons.folder_open,
-                  "View Documents",
                   Colors.orange,
-                  _pickPatientToViewDocuments,
-                ),
-                _dashboardCard(
-                  Icons.share,
-                  "Shared Reports",
+                ], _pickPatientAndUpload),
+                _dashboardCard(Icons.folder_open, "View Documents", [
+                  Colors.orange,
+                  Colors.deepOrange,
+                ], _pickPatientToViewDocuments),
+                _dashboardCard(Icons.share, "Shared Reports", [
                   Colors.teal,
-                  _openSharedReports,
+                  Colors.cyan,
+                ], _openSharedReports),
+                _dashboardCard(
+                  Icons.chat,
+                  "Chats",
+                  [Colors.blue, Colors.lightBlueAccent],
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DoctorChatlistPage(),
+                      ),
+                    );
+                  },
                 ),
-                _dashboardCard(Icons.chat, "Chats", Colors.blue, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DoctorChatlistPage(),
-                    ),
-                  );
-                }),
               ],
             ),
 
@@ -374,8 +389,9 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                         elevation: 3,
                         child: ListTile(
                           leading: CircleAvatar(
-                            // ignore: deprecated_member_use
-                            backgroundColor: primary.withOpacity(0.1),
+                            backgroundColor:
+                                // ignore: deprecated_member_use
+                                Colors.blue.withOpacity(0.1),
                             child: const Icon(
                               Icons.person,
                               color: Colors.black87,
@@ -396,7 +412,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
   Widget _dashboardCard(
     IconData icon,
     String title,
-    Color color,
+    List<Color> gradientColors,
     VoidCallback onTap,
   ) {
     return InkWell(
@@ -404,22 +420,23 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          // ignore: deprecated_member_use
-          color: color.withOpacity(0.1),
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
-          // ignore: deprecated_member_use
-          border: Border.all(color: color.withOpacity(0.5)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 40, color: color),
+            Icon(icon, size: 40, color: Colors.white),
             const SizedBox(height: 10),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16,
-                color: color,
+                color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.center,

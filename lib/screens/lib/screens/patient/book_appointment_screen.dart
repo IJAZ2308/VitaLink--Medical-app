@@ -30,22 +30,43 @@ class BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
 
     final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    // create dateTime format field
+    final fullDateTime = DateTime(
+      selectedDate!.year,
+      selectedDate!.month,
+      selectedDate!.day,
+      selectedTime!.hour,
+      selectedTime!.minute,
+    );
+
+    // get patient name
+    final userSnap = await FirebaseDatabase.instance
+        .ref()
+        .child("users")
+        .child(uid)
+        .get();
+
+    String patientName = userSnap.child("name").value?.toString() ?? "Unknown";
+
     final appointmentDate =
         "${selectedDate!.year}-${selectedDate!.month}-${selectedDate!.day}";
     final appointmentTime = "${selectedTime!.hour}:${selectedTime!.minute}";
 
     final dbRef = FirebaseDatabase.instance.ref().child("appointments");
 
-    // Generate unique key for appointment
     final newAppointmentRef = dbRef.push();
 
     await newAppointmentRef.set({
-      'id': newAppointmentRef.key, // ✅ store ID
+      'id': newAppointmentRef.key,
       'patientId': uid,
+      'patientName': patientName, // ADDED
       'doctorId': widget.doctorId,
       'doctorName': widget.doctorName,
+      'specialization': "", // ADDED
       'date': appointmentDate,
       'time': appointmentTime,
+      'dateTime': fullDateTime.toIso8601String(), // ADDED
       'reason': _reasonController.text.trim(),
       'status': 'pending',
       'createdAt': DateTime.now().toIso8601String(),

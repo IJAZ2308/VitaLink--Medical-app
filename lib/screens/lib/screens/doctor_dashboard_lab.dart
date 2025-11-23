@@ -220,7 +220,14 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   void _viewAppointments() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const LabAppointmentListPage()),
+      MaterialPageRoute(
+        builder: (_) => LabAppointmentListPage(
+          patientId: '',
+          patientName: '',
+          doctorId: '',
+          doctorName: '',
+        ),
+      ),
     );
   }
 
@@ -272,16 +279,14 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                     _dashboardCard(
                       icon: Icons.upload_file,
                       title: "Upload Reports",
-                      color1: Colors.pinkAccent,
-                      color2: Colors.redAccent,
+                      gradientColors: [Colors.pinkAccent, Colors.redAccent],
                       badgeCount: _patients.length,
                       onTap: _pickPatientAndUpload,
                     ),
                     _dashboardCard(
                       icon: Icons.chat_bubble_outline,
                       title: "Chats",
-                      color1: Colors.cyan,
-                      color2: Colors.teal,
+                      gradientColors: [Colors.cyan, Colors.teal],
                       onTap: () {
                         Navigator.push(
                           context,
@@ -294,8 +299,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                     _dashboardCard(
                       icon: Icons.event,
                       title: "Lab Appointments",
-                      color1: Colors.orangeAccent,
-                      color2: Colors.deepOrange,
+                      gradientColors: [Colors.orangeAccent, Colors.deepOrange],
                       badgeCount: _appointments.length,
                       onTap: _viewAppointments,
                     ),
@@ -309,8 +313,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   Widget _dashboardCard({
     required IconData icon,
     required String title,
-    required Color color1,
-    required Color color2,
+    required List<Color> gradientColors,
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
@@ -323,8 +326,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
             duration: const Duration(milliseconds: 400),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                // ignore: deprecated_member_use
-                colors: [color1.withOpacity(0.9), color2.withOpacity(0.9)],
+                colors: gradientColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -332,7 +334,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
               boxShadow: [
                 BoxShadow(
                   // ignore: deprecated_member_use
-                  color: color2.withOpacity(0.4),
+                  color: gradientColors.last.withOpacity(0.4),
                   blurRadius: 8,
                   offset: const Offset(3, 3),
                 ),
@@ -364,7 +366,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  gradient: const LinearGradient(
+                    colors: [Colors.yellow, Colors.orange],
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(color: Colors.black26, blurRadius: 4),
@@ -373,7 +377,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                 child: Text(
                   '$badgeCount',
                   style: const TextStyle(
-                    color: Colors.red,
+                    color: Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),

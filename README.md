@@ -56,9 +56,7 @@ The VitaLink system is built using **Flutter** for the frontend and **Firebase**
    - **Storage:** Firebase Storage for medical documents, doctor licenses, and images
    - **Cloud Messaging:** Firebase Cloud Messaging (FCM) for push notifications
 
-3. **Machine Learning (Optional Module)**
-   - Integration with ML models for patient monitoring or predictive alerts (can be TensorFlow Lite models)
-   - Can analyze uploaded medical reports or provide recommendations
+
 
 ### Architecture Diagram
 ![System Architecture](assets/system_architecture.png)  

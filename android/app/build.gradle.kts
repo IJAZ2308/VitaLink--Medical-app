@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.example.dr_shahin_uk"
     compileSdk = flutter.compileSdkVersion
@@ -27,11 +34,33 @@ android {
         jvmTarget = "1.8"
     }
 
+    // ✅ Signing configs
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
+    // ✅ Build types
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
-            // minifyEnabled = true // Optional
-            // shrinkResources = true // Optional
+            signingConfig = signingConfigs.getByName("release")
+
+            // Optimize release build
+            isMinifyEnabled = true       // Enables R8 (code shrinking + obfuscation)
+            isShrinkResources = true     // Removes unused resources
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("release") // Optional: use same signing for debug
         }
     }
 }

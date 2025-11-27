@@ -1,4 +1,5 @@
 import 'package:dr_shahin_uk/screens/lib/screens/admin_doctor_approval_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/manage_bed_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -579,6 +580,38 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
               ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ManageBedScreen()),
+                  );
+                },
+                child: Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.bed, size: 40, color: Colors.pink),
+                        SizedBox(height: 10),
+                        Text(
+                          "Manage Bed Bookings",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
               _buildNavigationCard(
                 title: "Verify Pending Doctors",
                 icon: Icons.verified_user_rounded,

@@ -1,5 +1,6 @@
 import 'dart:convert'; // for JSON encoding
 import 'package:dr_shahin_uk/services/notification_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geocoding/geocoding.dart';
@@ -16,6 +17,7 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'hospitals',
   );
+
   final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
     'users',
   );
@@ -55,9 +57,9 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
         hospitalSnapshot.value as Map,
       );
       final name = hospitalData['name'] ?? 'a hospital';
+
       await _dbRef.child(hospitalId).remove();
 
-      // Notify LSO users
       await _notifyLSOUsers(
         title: 'Hospital Removed',
         body: 'The hospital "$name" has been removed from the system.',
@@ -72,9 +74,20 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     }
   }
 
+  // 🔥 FIXED: Geocoding with error handling (no more freezing)
   Future<Map<String, double>> _getLatLng(String address) async {
-    List<Location> locations = await locationFromAddress(address);
-    return {"lat": locations.first.latitude, "lng": locations.first.longitude};
+    try {
+      List<Location> locations = await locationFromAddress(address);
+      return {
+        "lat": locations.first.latitude,
+        "lng": locations.first.longitude,
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print("Geocoding Error: $e");
+      }
+      return {"lat": 0.0, "lng": 0.0};
+    }
   }
 
   void _showAddHospitalDialog() {
@@ -118,38 +131,44 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
         actions: [
           TextButton(
             onPressed: () async {
-              final name = nameController.text.trim();
-              final address = addressController.text.trim();
-              final phone = phoneController.text.trim();
-              final website = websiteController.text.trim();
-              final beds = int.tryParse(bedsController.text.trim()) ?? 0;
-              if (name.isEmpty || address.isEmpty) return;
+              try {
+                final name = nameController.text.trim();
+                final address = addressController.text.trim();
+                final phone = phoneController.text.trim();
+                final website = websiteController.text.trim();
+                final beds = int.tryParse(bedsController.text.trim()) ?? 0;
 
-              final latlng = await _getLatLng(address);
+                if (name.isEmpty || address.isEmpty) return;
 
-              final hospitalData = {
-                "name": name,
-                "address": address,
-                "phone": phone.isNotEmpty ? phone : "N/A",
-                "website": website,
-                "availableBeds": beds,
-                "lat": latlng["lat"],
-                "lng": latlng["lng"],
-              };
+                final latlng = await _getLatLng(address);
 
-              await _dbRef.push().set(hospitalData);
+                final hospitalData = {
+                  "name": name,
+                  "address": address,
+                  "phone": phone.isNotEmpty ? phone : "N/A",
+                  "website": website,
+                  "availableBeds": beds,
+                  "lat": latlng["lat"],
+                  "lng": latlng["lng"],
+                };
 
-              // Notify LSO users using JSON payload
-              await _notifyLSOUsers(
-                title: 'New Hospital Added',
-                body: json.encode({
-                  'message':
-                      'The hospital "$name" has been added successfully.',
-                }),
-              );
+                await _dbRef.push().set(hospitalData);
 
-              // ignore: use_build_context_synchronously
-              Navigator.of(ctx).pop();
+                await _notifyLSOUsers(
+                  title: 'New Hospital Added',
+                  body: json.encode({
+                    'message':
+                        'The hospital "$name" has been added successfully.',
+                  }),
+                );
+
+                // ignore: use_build_context_synchronously
+                Navigator.of(ctx).pop();
+              } catch (e) {
+                if (kDebugMode) {
+                  print("Save Error: $e");
+                }
+              }
             },
             child: const Text("Save"),
           ),
@@ -172,9 +191,10 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
     final data = snapshot.value as Map<dynamic, dynamic>;
     for (var userEntry in data.entries) {
       final user = userEntry.value as Map<dynamic, dynamic>;
+
       if (user['role'] == 'LSO' && user['fcmToken'] != null) {
         final token = user['fcmToken'].toString();
-        // Using NotificationService and JSON encoding
+
         await NotificationService.sendPushNotification(
           fcmToken: token,
           title: title,
@@ -200,6 +220,7 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
 
           final Map<dynamic, dynamic> hospitalsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
           final List<Map<dynamic, dynamic>> hospitals = hospitalsMap.entries
               .map((e) {
                 final data = Map<String, dynamic>.from(e.value);

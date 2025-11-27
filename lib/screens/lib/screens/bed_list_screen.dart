@@ -184,8 +184,7 @@ class BedListScreenState extends State<BedListScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("No beds available")),
-        );
-      }
+      );
     }
   }
 
@@ -372,13 +371,17 @@ class BedListScreenState extends State<BedListScreen> {
 
       if (_currentPosition != null) {
         tempHospitals = tempHospitals.where((hospital) {
-          if (hospital['latitude'] != null && hospital['longitude'] != null) {
+          double? hLat = hospital['latitude'] ?? hospital['lat'];
+          double? hLng = hospital['longitude'] ?? hospital['lng'];
+
+          if (hLat != null && hLng != null) {
             double distance = Geolocator.distanceBetween(
               _currentPosition!.latitude,
               _currentPosition!.longitude,
-              hospital['latitude'],
-              hospital['longitude'],
+              hLat,
+              hLng,
             );
+
             hospital['distance'] = (distance / 1000).toStringAsFixed(2);
             return true;
           }
@@ -391,6 +394,12 @@ class BedListScreenState extends State<BedListScreen> {
           return distA.compareTo(distB);
         });
       }
+
+      tempHospitals.sort((a, b) {
+        double distA = double.tryParse(a['distance'] ?? "9999") ?? 9999;
+        double distB = double.tryParse(b['distance'] ?? "9999") ?? 9999;
+        return distA.compareTo(distB);
+      });
 
       setState(() {
         hospitals = tempHospitals;

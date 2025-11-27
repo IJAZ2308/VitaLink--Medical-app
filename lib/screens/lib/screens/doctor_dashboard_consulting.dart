@@ -31,7 +31,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     super.initState();
     _initDoctor();
     NotificationService.initialize();
-    NotificationService.setupFCM();
+    NotificationService.setupFCMListeners(context);
   }
 
   Future<void> _initDoctor() async {

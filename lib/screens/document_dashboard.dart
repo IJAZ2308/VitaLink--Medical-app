@@ -24,6 +24,7 @@ class DocumentDashboardScreen extends StatelessWidget {
                       patientId: '',
                       patientName: '',
                       doctorId: '',
+                      appointmentId: '',
                     ),
                   ),
                 );

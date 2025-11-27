@@ -69,14 +69,16 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   bool _isSlotBooked(TimeOfDay time) {
-    return _bookedSlots.any(
+    // Check if any slot on the selected date is booked
+    final isAnySlotBookedOnDate = _bookedSlots.any(
       (slot) =>
           slot.year == _selectedDate.year &&
           slot.month == _selectedDate.month &&
-          slot.day == _selectedDate.day &&
-          slot.hour == time.hour &&
-          slot.minute == time.minute,
+          slot.day == _selectedDate.day,
     );
+
+    // Disable all slots if any slot on this date is already booked
+    return isAnySlotBookedOnDate;
   }
 
   Future<void> _bookAppointment() async {
@@ -236,7 +238,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   itemCount: timeSlots.length,
                   itemBuilder: (context, index) {
                     final time = timeSlots[index];
-                    final isBooked = _isSlotBooked(time);
+                    final isBooked = _isSlotBooked(
+                      time,
+                    ); // now disables all if one booked
                     final isSelected = _selectedTime == time;
 
                     return GestureDetector(
@@ -259,8 +263,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          // ignore: unnecessary_string_interpolations
-                          "${time.format(context)}",
+                          time.format(context),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

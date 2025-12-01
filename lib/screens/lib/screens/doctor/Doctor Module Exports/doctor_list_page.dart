@@ -85,10 +85,12 @@ class _DoctorListPageState extends State<DoctorListPage> {
         ? _doctors
         : _doctors
               .where(
-                (d) => d.specializations
-                    .map((s) => s.toLowerCase())
-                    .contains(_selectedCategory.toLowerCase()),
-              )
+  (d) => d.specializations.any(
+    (s) => s.toLowerCase().contains(_selectedCategory.toLowerCase()),
+  ),
+)
+
+
               .toList();
 
     return Scaffold(

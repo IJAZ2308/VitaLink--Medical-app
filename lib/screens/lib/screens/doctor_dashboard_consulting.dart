@@ -1,5 +1,7 @@
 import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_book.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -133,32 +135,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     setState(() => _patients = loadedPatients);
   }
 
-  void _logout() async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Confirm Logout"),
-        content: const Text("Are you sure you want to log out?"),
-        actions: [
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () => Navigator.pop(context, false),
-          ),
-          ElevatedButton(
-            child: const Text("Logout"),
-            onPressed: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true) {
-      await _auth.signOut();
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-
   void _pickPatientAndUpload() {
     if (_patients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -191,7 +167,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
                           doctorId: doctorId,
-                          doctorName: '',
+                          doctorName: 'doctorName',
                         ),
                       ),
                     );
@@ -251,6 +227,52 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     );
   }
 
+  void _pickPatientToViewReports() {
+    if (_patients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No patients assigned yet.")),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text("Select Patient to View Reports"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _patients.length,
+              itemBuilder: (context, index) {
+                final patient = _patients[index];
+                return ListTile(
+                  title: Text(patient['name']!),
+                  onTap: () {
+                    Navigator.pop(context);
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PatientReportsScreen(
+                          patientId: patient['uid']!,
+                          patientName: patient['name']!,
+                          doctorId: _auth.currentUser!.uid,
+                          doctorName: _doctorName,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openSharedReports() {
     Navigator.push(
       context,
@@ -274,7 +296,12 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         ),
         title: Text("Welcome, $_doctorName"),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              LogoutHelper.logout(context);
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -282,7 +309,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gradient Header
+            // Header
             Container(
               padding: const EdgeInsets.all(20),
               width: double.infinity,
@@ -320,7 +347,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
             ),
             const SizedBox(height: 20),
 
-            // Gradient Grid Menu
+            // GRID MENU
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -341,18 +368,28 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     );
                   },
                 ),
+
                 _dashboardCard(Icons.upload_file, "Upload Reports", [
                   Colors.red,
                   Colors.orange,
                 ], _pickPatientAndUpload),
+
                 _dashboardCard(Icons.folder_open, "View Documents", [
                   Colors.orange,
                   Colors.deepOrange,
                 ], _pickPatientToViewDocuments),
+
                 _dashboardCard(Icons.share, "Shared Reports", [
                   Colors.teal,
                   Colors.cyan,
                 ], _openSharedReports),
+
+                // ✅ ADDED VIEW REPORTS CARD
+                _dashboardCard(Icons.description, "View Reports", [
+                  Colors.purple,
+                  Colors.deepPurpleAccent,
+                ], _pickPatientToViewReports),
+
                 _dashboardCard(
                   Icons.chat,
                   "Chats",

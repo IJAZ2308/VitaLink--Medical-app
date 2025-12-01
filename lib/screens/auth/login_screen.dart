@@ -37,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // Firebase Auth sign in
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
@@ -48,6 +49,51 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      /// ------------------ DOCTOR CHECK ------------------
+      final doctorSnapshot = await _db.child("doctors").child(uid).get();
+      if (doctorSnapshot.exists) {
+        final doctorData = Map<String, dynamic>.from(
+          doctorSnapshot.value as Map,
+        );
+
+        final doctorType = doctorData['doctorType'] ?? '';
+        final bool isVerified = doctorData['isVerified'] == true;
+
+        // If not verified, show pending screen
+        if (!isVerified) {
+          // ignore: use_build_context_synchronously
+          await _onLoginSuccess(context);
+          Navigator.pushReplacement(
+            // ignore: use_build_context_synchronously
+            context,
+            MaterialPageRoute(builder: (_) => const VerifyPending()),
+          );
+          return;
+        }
+
+        // Determine doctor dashboard
+        final Map<String, Widget> dashboardMap = {
+          'labDoctor': const LabDoctorDashboard(),
+          'consultingDoctor': const ConsultingDoctorDashboard(),
+        };
+
+        final role = doctorType;
+        if (dashboardMap.containsKey(role)) {
+          // ignore: use_build_context_synchronously
+          await _onLoginSuccess(context);
+          Navigator.pushReplacement(
+            // ignore: use_build_context_synchronously
+            context,
+            MaterialPageRoute(builder: (_) => dashboardMap[role]!),
+          );
+          return;
+        } else {
+          setState(() => error = 'Unknown doctor type. Contact admin.');
+          return;
+        }
+      }
+
+      /// ------------------ PATIENT / ADMIN ------------------
       final snapshot = await _db.child("users").child(uid).get();
       if (!snapshot.exists) {
         setState(() => error = "User not found in database.");
@@ -55,47 +101,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final data = Map<String, dynamic>.from(snapshot.value as Map);
-      String role = data['role'] ?? '';
-      String doctorType = data['doctorType'] ?? '';
+      final String role = data['role'] ?? '';
+      final bool isVerified = data['isVerified'] == true;
 
-      /// -------------------- ROLE FIX FOR DOCTORS --------------------
-      if (role == 'doctor') {
-        if (doctorType == 'labDoctor') {
-          role = 'labDoctor';
-        } else if (doctorType == 'consultingDoctor') {
-          role = 'consultingDoctor';
-        }
-      }
-
-      bool isVerified = data['isVerified'] is bool
-          ? data['isVerified']
-          : (data['isVerified'].toString().toLowerCase() == 'true');
-
-      // For doctors, check in doctors node for verification
-      if ((role == 'labDoctor' || role == 'consultingDoctor')) {
-        final doctorSnapshot = await _db.child("doctors").child(uid).get();
-        if (doctorSnapshot.exists) {
-          final doctorData = Map<String, dynamic>.from(
-            doctorSnapshot.value as Map,
-          );
-          isVerified = doctorData['isVerified'] ?? false;
-        } else {
-          isVerified = false;
-        }
-      }
-
-      if (!mounted) return;
-
-      // Role → dashboard mapping
-      final Map<String, Widget> dashboardMap = {
-        'labDoctor': const LabDoctorDashboard(),
-        'consultingDoctor': const ConsultingDoctorDashboard(),
-        'patient': const PatientDashboard(),
-        'admin': const AdminDashboard(),
-      };
-
-      // Unverified doctors → VerifyPending screen
-      if ((role == 'labDoctor' || role == 'consultingDoctor') && !isVerified) {
+      // Optional: block unverified patients/admins if needed
+      if (!isVerified) {
+        // ignore: use_build_context_synchronously
         await _onLoginSuccess(context);
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
@@ -105,8 +116,13 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Verified user → dashboard
+      final Map<String, Widget> dashboardMap = {
+        'patient': const PatientDashboard(),
+        'admin': const AdminDashboard(),
+      };
+
       if (dashboardMap.containsKey(role)) {
+        // ignore: use_build_context_synchronously
         await _onLoginSuccess(context);
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
@@ -202,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 10),
 
-                          /// EMAIL
+                          // EMAIL FIELD
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -231,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          /// PASSWORD
+                          // PASSWORD FIELD
                           SizedBox(
                             height: 50,
                             child: TextFormField(
@@ -289,7 +305,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
 
-                          /// LOGIN BUTTON
+                          // LOGIN BUTTON
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -314,7 +330,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-
                           const SizedBox(height: 20),
 
                           TextButton(

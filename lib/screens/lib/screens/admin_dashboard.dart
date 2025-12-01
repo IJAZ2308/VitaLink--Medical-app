@@ -1,4 +1,5 @@
 import 'package:dr_shahin_uk/screens/lib/screens/admin_doctor_approval_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/manage_bed_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +27,7 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  // ignore: unused_field
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   int totalDoctors = 0;
@@ -62,11 +64,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   // 🔹 Logout
-  void _logout() async {
-    await _auth.signOut();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
-  }
 
   // ✅ Load Counts
   Future<void> _loadCounts() async {
@@ -434,7 +431,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: const Icon(Icons.filter_list),
             onPressed: _showDoctorFilterDialog,
           ),
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              LogoutHelper.logout(context);
+            },
+          ),
         ],
       ),
       body: Container(

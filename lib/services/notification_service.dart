@@ -29,12 +29,16 @@ class NotificationService {
   Future<void> init({BuildContext? context}) async {
     appContext = context ?? appContext;
 
+    // Initialize Firebase (ensure called once in main.dart)
     await Firebase.initializeApp();
 
+    // Request permissions for notifications
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
+    // Handle background messages
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+    // Local notifications setup
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -48,24 +52,21 @@ class NotificationService {
       },
     );
 
-    // Save device token
-    await _saveDeviceToken();
-
     // Subscribe to all users topic
     await subscribeToTopic('allUsers');
-
-    // Listen to role-based database events
-    _listenToRoleEvents();
 
     // Foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
     });
 
-    // Background/terminated messages
+    // Background/terminated messages opened
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       _handleNavigation(message.data['type']);
     });
+
+    // Listen to role-based database events
+    _listenToRoleEvents();
   }
 
   /// -------------------- BACKGROUND HANDLER --------------------
@@ -85,6 +86,14 @@ class NotificationService {
         await _dbRef.child('users/${user.uid}/fcmToken').set(token);
         print('✅ Saved FCM token for user: ${user.uid}');
       }
+
+      // Listen for token refresh
+      _messaging.onTokenRefresh.listen((newToken) async {
+        await _dbRef.child('users/${user.uid}/fcmToken').set(newToken);
+        print('🔄 FCM token refreshed for user: ${user.uid}');
+      });
+    } else {
+      print('⚠️ User not logged in, cannot save FCM token yet.');
     }
   }
 
@@ -241,6 +250,7 @@ class NotificationService {
     await NotificationService().init(context: context);
   }
 
+  /// Call this **after login** to save the FCM token
   static Future<void> saveUserToken() async {
     await NotificationService()._saveDeviceToken();
   }

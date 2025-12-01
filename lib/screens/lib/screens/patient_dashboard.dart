@@ -1,3 +1,4 @@
+import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patlabappointmentpage.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -83,13 +84,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
     }
   }
 
-  Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    if (context.mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final userEmail = user?.email ?? 'Patient';
@@ -102,8 +96,9 @@ class _PatientDashboardState extends State<PatientDashboard> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: "Logout",
-            onPressed: () => _logout(context),
+            onPressed: () {
+              LogoutHelper.logout(context);
+            },
           ),
         ],
       ),

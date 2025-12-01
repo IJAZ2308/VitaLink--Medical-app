@@ -5,15 +5,13 @@ import 'package:intl/intl.dart';
 class LabAppointmentPage extends StatefulWidget {
   final String patientId;
   final String patientName;
-  final String doctorId;
-  final String doctorName;
 
   const LabAppointmentPage({
     super.key,
     required this.patientId,
     required this.patientName,
-    required this.doctorId,
-    required this.doctorName,
+    required String doctorId,
+    required String doctorName,
   });
 
   @override
@@ -24,10 +22,15 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'labAppointments',
   );
+  final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
+    'doctors',
+  );
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String? _selectedTest;
+  String? _selectedLabDoctorId;
+  String? _selectedLabDoctorName;
 
   final TextEditingController _reasonController = TextEditingController();
 
@@ -39,6 +42,34 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
     "CT Scan",
     "Other",
   ];
+
+  List<Map<String, String>> _labDoctors = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLabDoctors();
+  }
+
+  void _fetchLabDoctors() async {
+    final snapshot = await _doctorsRef.get();
+
+    List<Map<String, String>> loadedDoctors = [];
+
+    if (snapshot.exists) {
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      data.forEach((key, value) {
+        // Only include Lab Doctors
+        if (value['type'] == 'lab') {
+          loadedDoctors.add({'id': key, 'name': value['name'] ?? 'Unknown'});
+        }
+      });
+    }
+
+    setState(() {
+      _labDoctors = loadedDoctors;
+    });
+  }
 
   void _pickDate() async {
     final date = await showDatePicker(
@@ -59,6 +90,13 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   }
 
   void _bookLabAppointment() async {
+    if (_selectedLabDoctorId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select a Lab Doctor")),
+      );
+      return;
+    }
+
     if (_selectedDate == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please select date and time")),
@@ -82,8 +120,8 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
     await newApptRef.set({
       'patientId': widget.patientId,
       'patientName': widget.patientName,
-      'doctorId': widget.doctorId,
-      'doctorName': widget.doctorName,
+      'doctorId': _selectedLabDoctorId,
+      'doctorName': _selectedLabDoctorName,
       'appointmentDate': dateStr,
       'timeSlot': timeStr,
       'testType': _selectedTest ?? "Lab Test",
@@ -107,11 +145,32 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ListTile(
-              title: Text("Patient: ${widget.patientName}"),
-              subtitle: Text("Doctor: ${widget.doctorName}"),
-            ),
+            ListTile(title: Text("Patient: ${widget.patientName}")),
             const SizedBox(height: 16),
+
+            // ✅ Dropdown to select Lab Doctor
+            DropdownButtonFormField<String>(
+              value: _selectedLabDoctorId,
+              hint: const Text("Select Lab Doctor"),
+              items: _labDoctors.map((doc) {
+                return DropdownMenuItem(
+                  value: doc['id'],
+                  child: Text(doc['name']!),
+                );
+              }).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedLabDoctorId = val;
+                  _selectedLabDoctorName = _labDoctors.firstWhere(
+                    (doc) => doc['id'] == val,
+                  )['name'];
+                });
+              },
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+            ),
+
+            const SizedBox(height: 16),
+
             DropdownButtonFormField<String>(
               value: _selectedTest,
               hint: const Text("Select Lab Test (optional)"),
@@ -122,6 +181,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
             const SizedBox(height: 16),
+
             TextField(
               controller: _reasonController,
               maxLines: 2,
@@ -132,6 +192,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               ),
             ),
             const SizedBox(height: 16),
+
             Row(
               children: [
                 Expanded(
@@ -158,6 +219,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               ],
             ),
             const SizedBox(height: 24),
+
             ElevatedButton(
               onPressed: _bookLabAppointment,
               child: const Text("Book Lab Appointment"),

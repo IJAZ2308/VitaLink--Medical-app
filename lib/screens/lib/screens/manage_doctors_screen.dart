@@ -232,21 +232,31 @@ class ManageDoctorsScreen extends StatefulWidget {
 }
 
 class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child('doctors');
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    'doctors',
+  );
 
   // ✅ Update status for doctor (approved/rejected)
   Future<void> _updateStatus(String doctorId, String status) async {
     try {
-      await _dbRef.child(doctorId).update({'status': status});
+      // Determine isVerified value based on status
+      bool isVerified = status.toLowerCase() == 'approved';
+
+      // Update both status and isVerified in Firebase
+      await _dbRef.child(doctorId).update({
+        'status': status,
+        'isVerified': isVerified,
+      });
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Doctor status updated to $status")),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating status: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error updating status: $e")));
     }
   }
 
@@ -260,9 +270,9 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error deleting doctor: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error deleting doctor: $e")));
     }
   }
 
@@ -316,7 +326,9 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 
           final Map<dynamic, dynamic> doctorsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-          final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((e) {
+          final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((
+            e,
+          ) {
             final data = e.value as Map<dynamic, dynamic>;
             data['doctorId'] = e.key;
             // ✅ Ensure status field exists for login check
@@ -367,7 +379,10 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                         children: [
                           const Text("Status: "),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: _getStatusColor(status),
                               borderRadius: BorderRadius.circular(12),

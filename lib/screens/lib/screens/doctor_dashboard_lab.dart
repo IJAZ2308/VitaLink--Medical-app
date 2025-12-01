@@ -392,6 +392,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 }
 */
 import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
 import 'package:dr_shahin_uk/screens/upload_document_screen.dart';
 import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -533,6 +534,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   }
 
   // 🔥 FIXED LOGOUT FUNCTION
+  // ignore: unused_element
   void _logout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -646,7 +648,12 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           backgroundColor: Colors.transparent,
           centerTitle: true,
           actions: [
-            IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () {
+                LogoutHelper.logout(context);
+              },
+            ),
           ],
         ),
         body: (_loadingPatients || _loadingAppointments)

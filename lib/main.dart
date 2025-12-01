@@ -181,17 +181,7 @@ class AuthService {
       });
 
       /// Save FCM token specifically for doctors
-      Future<void> saveDoctorToken(String uid) async {
-        String? token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          await FirebaseDatabase.instance.ref("doctors/$uid").update({
-            "fcmToken": token,
-          });
-        }
-      }
-
-      // Save token correctly for doctors
-      await saveDoctorToken(uid);
+      await saveFCMToken(uid: uid, isDoctor: true);
 
       return true;
     } catch (e) {
@@ -207,34 +197,35 @@ class AuthService {
         password: password,
       );
 
-      DataSnapshot snapshot;
+      final uid = result.user!.uid;
 
       // First check in "doctors" node
-      snapshot = await _db.child("doctors").child(result.user!.uid).get();
+      final DataSnapshot doctorSnap = await _db.child("doctors/$uid").get();
 
-      if (snapshot.exists) {
+      if (doctorSnap.exists) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(
-          snapshot.value as Map,
+          doctorSnap.value as Map,
         );
 
         if (data['isVerified'] == false) {
           return null; // Doctor must be verified
         }
 
-        await saveUserToken();
+        // Save FCM token for doctor
+        await saveFCMToken(uid: uid, isDoctor: true);
         return data['role'] as String?;
       }
 
       // Otherwise check in "users" node
-      snapshot = await _db.child("users").child(result.user!.uid).get();
-
-      if (!snapshot.exists) return null;
+      final DataSnapshot userSnap = await _db.child("users/$uid").get();
+      if (!userSnap.exists) return null;
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(
-        snapshot.value as Map,
+        userSnap.value as Map,
       );
 
-      await saveUserToken();
+      // Save FCM token for user
+      await saveFCMToken(uid: uid, isDoctor: false);
       return data['role'] as String?;
     } catch (e) {
       developer.log("Login error", error: e);
@@ -242,16 +233,30 @@ class AuthService {
     }
   }
 
-  Future<void> saveUserToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  Future<void> saveFCMToken({
+    required String uid,
+    required bool isDoctor,
+  }) async {
+    // Request permission before getting token
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
-    String? token = await FirebaseMessaging.instance.getToken();
+    final token = await FirebaseMessaging.instance.getToken();
     if (token != null) {
-      await FirebaseDatabase.instance.ref("users/${user.uid}").update({
-        "fcmToken": token,
+      final node = isDoctor ? "doctors/$uid" : "users/$uid";
+      await _db.child(node).update({"fcmToken": token});
+      developer.log("🔑 Saved FCM Token for $node: $token");
+
+      // Listen for token refresh
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        await _db.child(node).update({"fcmToken": newToken});
+        developer.log("🔄 FCM token refreshed for $node: $newToken");
       });
-      developer.log("🔑 Saved FCM Token: $token");
+    } else {
+      developer.log("⚠️ Failed to generate FCM token for $uid");
     }
   }
 
@@ -264,65 +269,70 @@ class AuthService {
       _showLocalNotification(message);
     });
   }
-}
 
-/// ------------------------ FCM BACKGROUND HANDLER ------------------------
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  developer.log("🔔 Handling background message: ${message.messageId}");
-  _showLocalNotification(message);
-}
-
-/// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
-Future<void> _showLocalNotification(RemoteMessage message) async {
-  RemoteNotification? notification = message.notification;
-  if (notification != null && Platform.isAndroid) {
-    final AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          importance: Importance.high,
-          priority: Priority.high,
-        );
-
-    final NotificationDetails platformDetails = NotificationDetails(
-      android: androidDetails,
+  /// ------------------------ FCM BACKGROUND HANDLER ------------------------
+  Future<void> _firebaseMessagingBackgroundHandler(
+    RemoteMessage message,
+  ) async {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    await flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      platformDetails,
-    );
+    developer.log("🔔 Handling background message: ${message.messageId}");
+    // Do NOT call _showLocalNotification here; handle UI in foreground only
   }
-}
 
-/// ------------------------ MAIN FUNCTION ------------------------
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  /// ------------------------ LOCAL NOTIFICATION HELPER ------------------------
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    if (notification != null && Platform.isAndroid) {
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+          );
 
-  // Initialize local notifications
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+      final NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+      );
 
-  final InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
+      await flutterLocalNotificationsPlugin.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        platformDetails,
+      );
+    }
+  }
 
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  /// ------------------------ MAIN FUNCTION ------------------------
+  Future<void> main() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // Create notification channel
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(channel);
+    // Initialize local notifications
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  // FCM background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    final InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
 
-  runApp(const MyApp());
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    // Create notification channel
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
+
+    // FCM background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    runApp(const MyApp());
+  }
 }

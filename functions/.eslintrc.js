@@ -14,9 +14,9 @@ module.exports = {
   rules: {
     "no-restricted-globals": ["error", "name", "length"],
     "prefer-arrow-callback": "error",
-    "quotes": ["error", "double", { "allowTemplateLiterals": true }],
+    "quotes": ["error", "double", {"allowTemplateLiterals": true}],
     "require-jsdoc": "off",
-    "max-len": ["error", { "code": 120 }],
+    "max-len": ["error", {"code": 120}],
   },
   overrides: [
     {

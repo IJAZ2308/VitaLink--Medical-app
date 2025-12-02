@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "estraverse": "^5.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.41.0"
   }
 }

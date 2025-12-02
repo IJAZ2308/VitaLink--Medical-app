@@ -194,7 +194,7 @@ exports.newReportUploaded = onValueWritten(
       body: `A new report has been uploaded. Check your VitaLynk app.`
     });
   }
-,);
+);
 
 // -------------------- Doctor → Patient Chat Notification --------------------
 exports.sendDoctorToPatientNotification = onValueWritten(

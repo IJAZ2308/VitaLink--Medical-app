@@ -195,7 +195,7 @@ class _ManageHospitalsScreenState extends State<ManageHospitalsScreen> {
       if (user['role'] == 'LSO' && user['fcmToken'] != null) {
         final token = user['fcmToken'].toString();
 
-        await NotificationService.sendPushNotification(
+        await PushNotificationService.sendPushNotification(
           fcmToken: token,
           title: title,
           body: body,

@@ -45,7 +45,7 @@ class _ManageBedScreenState extends State<ManageBedScreen> {
     final token = user["fcmToken"];
 
     if (token != null) {
-      await NotificationService.sendPushNotification(
+      await PushNotificationService.sendPushNotification(
         fcmToken: token,
         title: title,
         body: body,

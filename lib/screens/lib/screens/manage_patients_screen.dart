@@ -59,7 +59,7 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
       );
 
       // ---------------- Use NotificationService directly ----------------
-      await NotificationService.sendPushNotification(
+      await PushNotificationService.sendPushNotification(
         fcmToken: fcmToken,
         title: title,
         body: body,

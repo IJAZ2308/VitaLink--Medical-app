@@ -149,10 +149,11 @@ class _AdminDoctorApprovalScreenState extends State<AdminDoctorApprovalScreen>
     final name = "${data['firstName'] ?? ''} ${data['lastName'] ?? ''}".trim();
     final token = data['fcmToken'] ?? '';
     if (token.isNotEmpty) {
-      await NotificationService.sendPushNotification(
+      await PushNotificationService.sendPushNotification(
         fcmToken: token,
         title: 'Doctor Account $status',
         body: 'Hello $name, your account has been $status by the admin.',
+        data: {},
       );
     }
   }

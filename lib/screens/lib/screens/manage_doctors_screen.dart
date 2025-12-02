@@ -223,6 +223,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dr_shahin_uk/services/notification_service.dart'; // Notification service import
 
 class ManageDoctorsScreen extends StatefulWidget {
   const ManageDoctorsScreen({super.key});
@@ -236,17 +237,19 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     'doctors',
   );
 
-  // ✅ Update status for doctor (approved/rejected)
+  // ✅ Update status for doctor (approved/rejected) with notification
   Future<void> _updateStatus(String doctorId, String status) async {
     try {
-      // Determine isVerified value based on status
       bool isVerified = status.toLowerCase() == 'approved';
 
-      // Update both status and isVerified in Firebase
+      // Update status and isVerified in Firebase
       await _dbRef.child(doctorId).update({
         'status': status,
         'isVerified': isVerified,
       });
+
+      // Send push notification
+      await _sendNotification(doctorId, status);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -293,6 +296,25 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     }
   }
 
+  // ✅ Send push notification
+  Future<void> _sendNotification(String doctorId, String status) async {
+    final snapshot = await _dbRef.child(doctorId).get();
+    if (!snapshot.exists) return;
+
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
+    final name = data['name'] ?? data['email'] ?? 'Doctor';
+    final fcmToken = data['fcmToken'] ?? '';
+
+    if (fcmToken.isNotEmpty) {
+      await PushNotificationService.sendPushNotification(
+        fcmToken: fcmToken,
+        title: 'Doctor Account $status',
+        body: 'Hello $name, your account has been $status by the admin.',
+        data: {},
+      );
+    }
+  }
+
   // ✅ Color for status badge
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -331,7 +353,6 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
           ) {
             final data = e.value as Map<dynamic, dynamic>;
             data['doctorId'] = e.key;
-            // ✅ Ensure status field exists for login check
             if (!data.containsKey('status')) {
               data['status'] = 'pending';
               _dbRef.child(e.key).update({'status': 'pending'});

@@ -141,9 +141,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// -------------------- SAVE TOKEN & FCM --------------------
   Future<void> _onLoginSuccess(BuildContext context) async {
-    await NotificationService.saveUserToken();
+    await PushNotificationService.saveUserToken();
     // ignore: use_build_context_synchronously
-    NotificationService.setupFCMListeners(context);
+    PushNotificationService.setupFCMListeners(context);
   }
 
   /// -------------------- RESET PASSWORD --------------------

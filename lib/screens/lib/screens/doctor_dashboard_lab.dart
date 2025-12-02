@@ -429,9 +429,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     await _fetchAppointments();
     await _fetchPatients();
 
-    NotificationService.initialize();
+    PushNotificationService.initialize(userId: '', role: '');
     // ignore: use_build_context_synchronously
-    NotificationService.setupFCMListeners(context);
+    PushNotificationService.setupFCMListeners(context);
   }
 
   Future<void> _fetchDoctorData() async {

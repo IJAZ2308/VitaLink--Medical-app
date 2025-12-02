@@ -212,8 +212,7 @@ exports.sendDoctorToPatientNotification = onValueWritten(
 
     const doctorSnap = await admin.database().ref(`/doctors/${doctorId}`).once("value");
     const doctor = doctorSnap.val();
-    const doctorName = (doctor && doctor.name) ? doctor.name : "Doctor";
-
+    const doctorName = doctor?.name || "Doctor";
 
     await sendPushNotification({
       tokens: [patient.fcmToken],

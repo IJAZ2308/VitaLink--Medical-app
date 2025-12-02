@@ -1,41 +1,6 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-/*
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
-const logger = require("firebase-functions/logger");
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
-
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
-
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
-*/
-
 // // Start writing functions
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const functions = require("firebase-functions");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {onValueWritten} = require("firebase-functions/v2/database");
 const {onCall} = require("firebase-functions/v2/https");
@@ -83,7 +48,12 @@ exports.bedAvailabilityNotification = onValueWritten(
       const isAvailable = event.data.after.val();
       if (!isAvailable) return null;
 
-      const usersSnap = await admin.database().ref("/users").orderByChild("role").equalTo("patient").once("value");
+      const usersSnap = await admin.database()
+          .ref("/users")
+          .orderByChild("role")
+          .equalTo("patient")
+          .once("value");
+
       const tokens = [];
       usersSnap.forEach((snap) => {
         const user = snap.val();
@@ -93,7 +63,7 @@ exports.bedAvailabilityNotification = onValueWritten(
       await sendPushNotification({
         tokens,
         title: "Bed Available",
-        body: `A ${event.params.bedType} bed is now available at ${event.params.hospitalId}`,
+        body: `A ${event.params.bedType} bed is now available at ${event.params.hospitalId}.`,
       });
     },
 );
@@ -104,7 +74,7 @@ exports.appointmentReminderScheduler = onSchedule(
     async () => {
       const now = Date.now();
       const snapshot = await admin.database().ref("/appointments").once("value");
-      if (!snapshot.exists()) return;
+      if (!snapshot.exsists()) return;
 
       snapshot.forEach(async (appSnap) => {
         const appointment = appSnap.val();
@@ -120,7 +90,7 @@ exports.appointmentReminderScheduler = onSchedule(
           await sendPushNotification({
             tokens: [patient.fcmToken],
             title: "Appointment Reminder",
-            body: `Your appointment with Dr. ${appointment.doctorId} is in 1 hour`,
+            body: `Your appointment with Dr. ${appointment.doctorId} is in 1 hour.`,
           });
         }
 
@@ -129,7 +99,7 @@ exports.appointmentReminderScheduler = onSchedule(
           await sendPushNotification({
             tokens: [patient.fcmToken],
             title: "Appointment Reminder",
-            body: `Your appointment with Dr. ${appointment.doctorId} is tomorrow`,
+            body: `Your appointment with Dr. ${appointment.doctorId} is tomorrow.`,
           });
         }
       });
@@ -143,7 +113,12 @@ exports.doctorVerificationAlert = onValueWritten(
       const isVerified = event.data.after.val();
       if (!isVerified) return null;
 
-      const adminsSnap = await admin.database().ref("/users").orderByChild("role").equalTo("admin").once("value");
+      const adminsSnap = await admin.database()
+          .ref("/users")
+          .orderByChild("role")
+          .equalTo("admin")
+          .once("value");
+
       const tokens = [];
       adminsSnap.forEach((snap) => {
         const adminUser = snap.val();
@@ -153,7 +128,7 @@ exports.doctorVerificationAlert = onValueWritten(
       await sendPushNotification({
         tokens,
         title: "Doctor Verified",
-        body: `Doctor ${event.params.doctorId} has been verified`,
+        body: `Doctor ${event.params.doctorId} has been verified.`,
       });
     },
 );
@@ -172,7 +147,7 @@ exports.appointmentBookedNotification = onValueWritten(
       await sendPushNotification({
         tokens: [doctor.fcmToken],
         title: "New Appointment Booked",
-        body: `Patient ${appointment.patientId} booked an appointment with you at ${appointment.datetime}`,
+        body: `Patient ${appointment.patientId} booked an appointment with you at ${appointment.datetime}.`,
       });
     },
 );
@@ -191,7 +166,7 @@ exports.newReportUploaded = onValueWritten(
       await sendPushNotification({
         tokens: [patient.fcmToken],
         title: "New Report Uploaded",
-        body: `A new report has been uploaded. Check your VitaLynk app.`,
+        body: "A new report has been uploaded. Check your VitaLynk app.",
       });
     },
 );
@@ -231,7 +206,14 @@ exports.sendForgotPasswordEmail = onCall(async (request) => {
     from: "\"VitaLynk\" <yourgmail@gmail.com>",
     to: email,
     subject: "VitaLynk Password Reset",
-    text: `Hello ${name},\n\nYour password has been reset. Your new password is: ${newPassword}\n\nPlease change it after logging in.\n\nThanks!`,
+    text: `Hello ${name},
+
+Your password has been reset.
+Your new password is: ${newPassword}
+
+Please change it after logging in.
+
+Thanks!`,
   };
 
   try {

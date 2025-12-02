@@ -220,6 +220,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 */
 
 // lib/screens/manage_doctors_screen.dart
+import 'package:dr_shahin_uk/screens/lib/screens/manage_doctor_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -379,11 +380,22 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                 ),
                 child: ListTile(
                   isThreeLine: true,
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.teal.shade100,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.teal),
+                  leading: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ManageDoctorDetailScreen(doctorId: doctorId),
+                        ),
+                      );
+                    },
+                    child: CircleAvatar(
+                      backgroundColor: Colors.teal.shade100,
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(color: Colors.teal),
+                      ),
                     ),
                   ),
                   title: Text(

@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "estraverse": "^5.3.0"
+  }
+}

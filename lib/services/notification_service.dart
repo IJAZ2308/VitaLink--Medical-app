@@ -192,4 +192,10 @@ class PushNotificationService {
   static void setupFCMListeners(BuildContext context) {}
 
   static Future<void> saveUserToken() async {}
+
+  static Future<void> sendPushMessage(
+    String doctorToken,
+    String s,
+    String t,
+  ) async {}
 }

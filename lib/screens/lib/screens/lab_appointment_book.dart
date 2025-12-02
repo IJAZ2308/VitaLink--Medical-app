@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+import 'package:dr_shahin_uk/services/notification_service.dart'; // ✅ ADDED
 
 class LabAppointmentPage extends StatefulWidget {
   final String patientId;
@@ -35,7 +36,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   final TextEditingController _reasonController = TextEditingController();
 
   final List<String> _labTests = [
-    "Blood Test",
+    "Blood's Imaging Emitting Sound Effects",
     "X-Ray",
     "MRI",
     "Ultrasound",
@@ -59,7 +60,6 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
     if (snapshot.exists) {
       final data = snapshot.value as Map<dynamic, dynamic>;
       data.forEach((key, value) {
-        // Only include Lab Doctors
         if (value['type'] == 'lab') {
           loadedDoctors.add({'id': key, 'name': value['name'] ?? 'Unknown'});
         }
@@ -130,6 +130,25 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       'createdAt': DateTime.now().toIso8601String(),
     });
 
+    // -----------------------------------------------------------
+    // 🔔 PUSH NOTIFICATION BLOCK ADDED (NO STRUCTURE CHANGED)
+    // -----------------------------------------------------------
+    final doctorTokenSnapshot = await FirebaseDatabase.instance
+        .ref()
+        .child("doctors/$_selectedLabDoctorId/fcmToken")
+        .get();
+
+    if (doctorTokenSnapshot.exists) {
+      final doctorToken = doctorTokenSnapshot.value.toString();
+
+      await PushNotificationService.sendPushMessage(
+        doctorToken,
+        "New Lab Appointment",
+        "${widget.patientName} booked a lab appointment on $dateStr at $timeStr.",
+      );
+    }
+    // -----------------------------------------------------------
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Lab appointment booked successfully")),
@@ -148,7 +167,6 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
             ListTile(title: Text("Patient: ${widget.patientName}")),
             const SizedBox(height: 16),
 
-            // ✅ Dropdown to select Lab Doctor
             DropdownButtonFormField<String>(
               value: _selectedLabDoctorId,
               hint: const Text("Select Lab Doctor"),

@@ -158,12 +158,11 @@ class AuthService {
     required bool isVerified,
     required String doctorType,
     required String s,
-    required String licenseUrl,
-    required String profileUrl,
-    required licenseFile,
-    required String licenseFileUrl,
-    File? profileFile,
+    required String licenseFileUrl, // <-- pass uploaded license URL
     required String profileFileUrl,
+    required licenseFile,
+    required String licenseUrl,
+    required String profileUrl, // <-- pass uploaded profile URL
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -181,8 +180,8 @@ class AuthService {
         'email': email,
         'role': "doctor",
         'doctorRole': s,
-        'licenseUrl': licenseUrl,
-        'profileUrl': profileUrl,
+        'licenseUrl': licenseFileUrl, // <-- fixed
+        'profileUrl': profileFileUrl, // <-- fixed
         'specialization': specialization,
         'status': doctorType,
         'isVerified': isVerified,

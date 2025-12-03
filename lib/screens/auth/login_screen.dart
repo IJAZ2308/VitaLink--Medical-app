@@ -50,17 +50,21 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       /// ------------------ DOCTOR CHECK ------------------
+      /// ------------------ DOCTOR CHECK ------------------
       final doctorSnapshot = await _db.child("doctors").child(uid).get();
       if (doctorSnapshot.exists) {
         final doctorData = Map<String, dynamic>.from(
           doctorSnapshot.value as Map,
         );
 
-        final doctorType = doctorData['doctorType'] ?? '';
-        final bool isVerified = doctorData['isVerified'] == true;
+        // FIX: correct field from database
+        final String doctorType = doctorData['doctorRole'] ?? '';
 
-        // If not verified, show pending screen
-        if (!isVerified) {
+        final bool isVerified = doctorData['isVerified'] == true;
+        final String status = doctorData['status'] ?? "pending";
+
+        // If pending or not verified → show verify pending page
+        if (!isVerified || status != "approved") {
           // ignore: use_build_context_synchronously
           await _onLoginSuccess(context);
           Navigator.pushReplacement(
@@ -71,24 +75,23 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // Determine doctor dashboard
+        // Doctor dashboards
         final Map<String, Widget> dashboardMap = {
           'labDoctor': const LabDoctorDashboard(),
           'consultingDoctor': const ConsultingDoctorDashboard(),
         };
 
-        final role = doctorType;
-        if (dashboardMap.containsKey(role)) {
+        if (dashboardMap.containsKey(doctorType)) {
           // ignore: use_build_context_synchronously
           await _onLoginSuccess(context);
           Navigator.pushReplacement(
             // ignore: use_build_context_synchronously
             context,
-            MaterialPageRoute(builder: (_) => dashboardMap[role]!),
+            MaterialPageRoute(builder: (_) => dashboardMap[doctorType]!),
           );
           return;
         } else {
-          setState(() => error = 'Unknown doctor type. Contact admin.');
+          setState(() => error = 'Unknown doctor role. Contact admin.');
           return;
         }
       }

@@ -316,7 +316,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
 
   String _selectedFilter = "Present"; // Today / Past / Future
 
-  // ---------- FIXED PARSER ----------
+  // ---------- SAFE PARSER ----------
   DateTime _safeParseDateTime(Map<dynamic, dynamic> data) {
     try {
       return DateTime.parse(data['dateTime']);
@@ -337,6 +337,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     return Colors.red;
   }
 
+  // ---------- CANCEL ----------
   Future<void> _cancelAppointment(String appointmentId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -368,6 +369,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     }
   }
 
+  // ---------- RESCHEDULE ----------
   void _pickNewDateTime(String appointmentId) async {
     DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -421,7 +423,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
       body: Column(
         children: [
           const SizedBox(height: 16),
-
+          // ---------- FILTER ----------
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: DropdownButtonFormField<String>(
@@ -449,9 +451,9 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
               onChanged: (value) => setState(() => _selectedFilter = value!),
             ),
           ),
-
           const SizedBox(height: 16),
 
+          // ---------- APPOINTMENT LIST ----------
           Expanded(
             child: StreamBuilder<DatabaseEvent>(
               stream: _dbRef.onValue,
@@ -477,6 +479,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                   }
                 });
 
+                // ---------- FILTER ----------
                 appointments.retainWhere((appt) {
                   final dt = _safeParseDateTime(appt);
                   final apptDay = DateTime(dt.year, dt.month, dt.day);
@@ -518,9 +521,8 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                     final status = _getStatus(appt, apptDateTime);
                     final statusColor = _getStatusColor(appt, apptDateTime);
 
-                    final canReschedule = apptDateTime.isAfter(
-                      DateTime.now().add(const Duration(hours: 1)),
-                    );
+                    // ---------- ALL FUTURE APPOINTMENTS CAN BE EDITED OR CANCELLED ----------
+                    final canReschedule = apptDateTime.isAfter(DateTime.now());
                     final canCancel = apptDateTime.isAfter(DateTime.now());
 
                     return Card(
@@ -543,24 +545,20 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.edit_calendar,
-                                color: canReschedule
-                                    ? Colors.green
-                                    : Colors.grey,
+                                color: Colors.green,
                               ),
                               onPressed: canReschedule
                                   ? () => _pickNewDateTime(appt['id'])
                                   : null,
                             ),
-                            if (canCancel)
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.cancel,
-                                  color: Colors.red,
-                                ),
-                                onPressed: () => _cancelAppointment(appt['id']),
-                              ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel, color: Colors.red),
+                              onPressed: canCancel
+                                  ? () => _cancelAppointment(appt['id'])
+                                  : null,
+                            ),
                           ],
                         ),
                       ),

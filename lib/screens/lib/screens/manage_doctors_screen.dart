@@ -220,11 +220,12 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
 */
 
 // lib/screens/manage_doctors_screen.dart
+
 import 'package:dr_shahin_uk/screens/lib/screens/manage_doctor_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:dr_shahin_uk/services/notification_service.dart'; // Notification service import
+import 'package:dr_shahin_uk/services/notification_service.dart';
 
 class ManageDoctorsScreen extends StatefulWidget {
   const ManageDoctorsScreen({super.key});
@@ -238,18 +239,16 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     'doctors',
   );
 
-  // ✅ Update status for doctor (approved/rejected) with notification
+  // ---------------- UPDATE STATUS ----------------
   Future<void> _updateStatus(String doctorId, String status) async {
     try {
       bool isVerified = status.toLowerCase() == 'approved';
 
-      // Update status and isVerified in Firebase
       await _dbRef.child(doctorId).update({
         'status': status,
         'isVerified': isVerified,
       });
 
-      // Send push notification
       await _sendNotification(doctorId, status);
 
       if (!mounted) return;
@@ -264,10 +263,11 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     }
   }
 
-  // ✅ Delete doctor
+  // ---------------- DELETE DOCTOR ----------------
   Future<void> _deleteDoctor(String doctorId) async {
     try {
       await _dbRef.child(doctorId).remove();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Doctor deleted successfully")),
@@ -280,7 +280,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     }
   }
 
-  // ✅ Open license URL
+  // ---------------- OPEN URL ----------------
   Future<void> _openUrl(String url) async {
     try {
       final uri = Uri.parse(url);
@@ -297,38 +297,38 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
     }
   }
 
-  // ✅ Send push notification
+  // ---------------- SEND PUSH NOTIFICATION ----------------
   Future<void> _sendNotification(String doctorId, String status) async {
     final snapshot = await _dbRef.child(doctorId).get();
     if (!snapshot.exists) return;
 
     final data = Map<String, dynamic>.from(snapshot.value as Map);
-    final name = data['name'] ?? data['email'] ?? 'Doctor';
-    final fcmToken = data['fcmToken'] ?? '';
+    final name = data['name'] ?? data['email'] ?? "Doctor";
+    final fcmToken = data['fcmToken'] ?? "";
 
     if (fcmToken.isNotEmpty) {
       await PushNotificationService.sendPushNotification(
         fcmToken: fcmToken,
-        title: 'Doctor Account $status',
-        body: 'Hello $name, your account has been $status by the admin.',
+        title: "Doctor Account $status",
+        body: "Hello $name, your account has been $status by the admin.",
         data: {},
       );
     }
   }
 
-  // ✅ Color for status badge
+  // ---------------- COLOR BADGE ----------------
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
         return Colors.green;
       case 'rejected':
         return Colors.red;
-      case 'pending':
       default:
         return Colors.orange;
     }
   }
 
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -343,21 +343,25 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
             return const Center(child: Text("No doctors found"));
           }
 
           final Map<dynamic, dynamic> doctorsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
           final List<Map<dynamic, dynamic>> doctors = doctorsMap.entries.map((
             e,
           ) {
             final data = e.value as Map<dynamic, dynamic>;
             data['doctorId'] = e.key;
+
             if (!data.containsKey('status')) {
               data['status'] = 'pending';
               _dbRef.child(e.key).update({'status': 'pending'});
             }
+
             return data;
           }).toList();
 
@@ -365,12 +369,12 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
             itemCount: doctors.length,
             itemBuilder: (context, index) {
               final data = doctors[index];
-              final doctorId = data['doctorId'] ?? '';
-              final name = data['name'] ?? data['email'] ?? 'Unknown Doctor';
-              final email = data['email'] ?? 'Not provided';
-              final specialty = data['specialty'] ?? 'Not specified';
-              final status = data['status'] ?? 'pending';
-              final licenseUrl = data['licenseUrl'] ?? '';
+              final doctorId = data['doctorId'] ?? "";
+              final name = data['name'] ?? data['email'] ?? "Unknown Doctor";
+              final email = data['email'] ?? "Not provided";
+              final specialization = data['specialization'] ?? "Not specified";
+              final status = data['status'] ?? "pending";
+              final licenseUrl = data['licenseUrl'] ?? "";
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -406,7 +410,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Email: $email"),
-                      Text("Specialty: $specialty"),
+                      Text("Specialization: $specialization"),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -488,6 +492,7 @@ class _ManageDoctorsScreenState extends State<ManageDoctorsScreen> {
                               ],
                             ),
                           );
+
                           if (confirm == true) _deleteDoctor(doctorId);
                         },
                       ),

@@ -335,9 +335,7 @@ class BedListScreen extends StatefulWidget {
 }
 
 class BedListScreenState extends State<BedListScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
-    'hospitals',
-  );
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child('hospitals');
   List<Map<String, dynamic>> hospitals = [];
   Position? _currentPosition;
   StreamSubscription<Position>? _positionSubscription;
@@ -355,6 +353,7 @@ class BedListScreenState extends State<BedListScreen> {
     super.dispose();
   }
 
+  /// Fetch hospitals data live from Firebase
   void _fetchHospitalsRealtime() {
     _dbRef.onValue.listen((event) {
       final data = event.snapshot.value;
@@ -369,10 +368,11 @@ class BedListScreenState extends State<BedListScreen> {
         });
       }
 
+      /// Add distance sorting
       if (_currentPosition != null) {
         tempHospitals = tempHospitals.where((hospital) {
-          double? hLat = hospital['latitude'] ?? hospital['lat'];
-          double? hLng = hospital['longitude'] ?? hospital['lng'];
+          double? hLat = hospital['latitude'];
+          double? hLng = hospital['longitude'];
 
           if (hLat != null && hLng != null) {
             double distance = Geolocator.distanceBetween(
@@ -395,18 +395,13 @@ class BedListScreenState extends State<BedListScreen> {
         });
       }
 
-      tempHospitals.sort((a, b) {
-        double distA = double.tryParse(a['distance'] ?? "9999") ?? 9999;
-        double distB = double.tryParse(b['distance'] ?? "9999") ?? 9999;
-        return distA.compareTo(distB);
-      });
-
       setState(() {
         hospitals = tempHospitals;
       });
     });
   }
 
+  /// Stream user's location
   Future<void> _initLocationStream() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -418,16 +413,15 @@ class BedListScreenState extends State<BedListScreen> {
     }
     if (permission == LocationPermission.deniedForever) return;
 
-    _positionSubscription =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 50,
-          ),
-        ).listen((Position position) {
-          setState(() => _currentPosition = position);
-          _fetchHospitalsRealtime();
-        });
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 50,
+      ),
+    ).listen((Position position) {
+      setState(() => _currentPosition = position);
+      _fetchHospitalsRealtime();
+    });
   }
 
   Future<void> _launchUrl(String urlString) async {
@@ -445,6 +439,7 @@ class BedListScreenState extends State<BedListScreen> {
 
   Future<void> _launchWebsite(String url) async => _launchUrl(url);
 
+  /// For handling different bed formats
   int _getTotalBeds(dynamic beds) {
     if (beds == null) return 0;
     if (beds is int) return beds;
@@ -467,10 +462,7 @@ class BedListScreenState extends State<BedListScreen> {
           int count = _getTotalBeds(entry.value);
           return Text(
             "${entry.key.toUpperCase()} Beds: $count",
-            style: TextStyle(
-              fontSize: 14,
-              color: count == 0 ? Colors.red : Colors.black,
-            ),
+            style: TextStyle(fontSize: 14, color: count == 0 ? Colors.red : Colors.black),
           );
         }).toList(),
       );
@@ -478,15 +470,12 @@ class BedListScreenState extends State<BedListScreen> {
       int count = _getTotalBeds(beds);
       return Text(
         "Total Beds: $count",
-        style: TextStyle(
-          fontSize: 14,
-          color: count == 0 ? Colors.red : Colors.black,
-        ),
+        style: TextStyle(fontSize: 14, color: count == 0 ? Colors.red : Colors.black),
       );
     }
   }
 
-  /// OPEN BOOKING SCREEN ONLY
+  /// OPEN BOOKING SCREEN
   void _bookBed(Map<String, dynamic> hospital) {
     Navigator.push(
       context,
@@ -506,13 +495,13 @@ class BedListScreenState extends State<BedListScreen> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
-                "Your Location: (${_currentPosition!.latitude.toStringAsFixed(4)}, ${_currentPosition!.longitude.toStringAsFixed(4)})",
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                "Your Location: "
+                "(${_currentPosition!.latitude.toStringAsFixed(4)}, "
+                "${_currentPosition!.longitude.toStringAsFixed(4)})",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
+
           Expanded(
             child: hospitals.isEmpty
                 ? const Center(child: Text("No hospitals found nearby."))
@@ -520,7 +509,9 @@ class BedListScreenState extends State<BedListScreen> {
                     itemCount: hospitals.length,
                     itemBuilder: (context, index) {
                       final hospital = hospitals[index];
-                      final totalBeds = _getTotalBeds(hospital['beds']);
+
+                      /// FIXED: correct key is 'availableBeds'
+                      final totalBeds = _getTotalBeds(hospital['availableBeds']);
 
                       return Card(
                         margin: const EdgeInsets.all(10),
@@ -541,79 +532,62 @@ class BedListScreenState extends State<BedListScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildBedCount(hospital['beds']),
+                                    _buildBedCount(hospital['availableBeds']),
+
                                     if (hospital.containsKey('distance'))
-                                      Text(
-                                        "Distance: ${hospital['distance']} km",
-                                      ),
-                                    Text(
-                                      "Contact: ${hospital['contact'] ?? 'N/A'}",
-                                    ),
+                                      Text("Distance: ${hospital['distance']} km"),
+
+                                    /// FIXED: correct key is 'phone'
+                                    Text("Contact: ${hospital['phone'] ?? 'N/A'}"),
                                   ],
                                 ),
+
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.map,
-                                        color: Colors.blue,
-                                      ),
+                                      icon: const Icon(Icons.map, color: Colors.blue),
                                       onPressed: () => _launchMap(
                                         hospital['latitude'],
                                         hospital['longitude'],
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.phone,
-                                        color: Colors.green,
-                                      ),
-                                      onPressed: () => _launchCaller(
-                                        hospital['contact'] ?? "",
-                                      ),
+                                      icon: const Icon(Icons.phone, color: Colors.green),
+                                      onPressed: () => _launchCaller(hospital['phone'] ?? ""),
                                     ),
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.web,
-                                        color: Colors.orange,
-                                      ),
-                                      onPressed: () => _launchWebsite(
-                                        hospital['website'] ?? "",
-                                      ),
+                                      icon: const Icon(Icons.web, color: Colors.orange),
+                                      onPressed: () => _launchWebsite(hospital['website'] ?? ""),
                                     ),
                                   ],
                                 ),
                               ),
+
                               const SizedBox(height: 10),
+
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blueAccent,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                 ),
-                                icon: const Icon(
-                                  Icons.local_hotel,
-                                  color: Colors.white,
-                                ),
+                                icon: const Icon(Icons.local_hotel, color: Colors.white),
+
+                                /// FIXED: using correct bed count
                                 label: Text(
                                   "Book Bed ($totalBeds)",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
                                 ),
-                                onPressed: totalBeds > 0
-                                    ? () => _bookBed(hospital)
-                                    : null,
+
+                                /// FIXED: button works if beds > 0
+                                onPressed: totalBeds > 0 ? () => _bookBed(hospital) : null,
                               ),
                             ],
                           ),

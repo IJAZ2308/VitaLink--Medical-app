@@ -115,14 +115,14 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
         name: _nameController.text.trim(),
         role: "doctor",
         s: _selectedDoctorRole!,
-        licenseFileUrl: licenseUrl,
-        profileFileUrl: profileUrl, // Change parameter name to profileFileUrl
+        licenseFileUrl: licenseUrl, // <-- pass uploaded URL
+        profileFileUrl: profileUrl, // <-- pass uploaded URL
         specialization: _selectedCategory!,
         isVerified: false,
         doctorType: "pending",
+        licenseFile: null,
         licenseUrl: '',
         profileUrl: '',
-        licenseFile: null,
       );
 
       if (!mounted) return;

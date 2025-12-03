@@ -85,12 +85,11 @@ class _DoctorListPageState extends State<DoctorListPage> {
         ? _doctors
         : _doctors
               .where(
-  (d) => d.specializations.any(
-    (s) => s.toLowerCase().contains(_selectedCategory.toLowerCase()),
-  ),
-)
-
-
+                (d) => d.specializations.any(
+                  (s) =>
+                      s.toLowerCase().contains(_selectedCategory.toLowerCase()),
+                ),
+              )
               .toList();
 
     return Scaffold(
@@ -197,6 +196,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
                                   trailing: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xff0064FA),
+                                      foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),

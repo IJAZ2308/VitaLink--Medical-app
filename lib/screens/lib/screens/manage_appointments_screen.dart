@@ -197,9 +197,8 @@ class ManageAppointmentsScreen extends StatefulWidget {
 }
 
 class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
-    'appointments',
-  );
+  final DatabaseReference _dbRef =
+      FirebaseDatabase.instance.ref().child('appointments');
 
   final Map<String, bool> _expandedMap = {};
 
@@ -209,9 +208,21 @@ class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Cannot open URL")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Cannot open URL")));
+    }
+  }
+
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -229,18 +240,13 @@ class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
           final Map<dynamic, dynamic> appointmentsMap =
               snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
-          final List<Map<String, dynamic>> approvedAppointments =
+          final List<Map<String, dynamic>> allAppointments =
               appointmentsMap.entries
                   .map((e) {
                     final data = Map<String, dynamic>.from(e.value);
                     data['appointmentId'] = e.key;
                     return data;
                   })
-                  .where(
-                    (data) =>
-                        data['status'] != null &&
-                        data['status'].toString().toLowerCase() == 'approved',
-                  )
                   .toList()
                 ..sort((a, b) {
                   final dateA =
@@ -250,14 +256,14 @@ class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
                   return dateA.compareTo(dateB);
                 });
 
-          if (approvedAppointments.isEmpty) {
-            return const Center(child: Text("No approved appointments yet"));
+          if (allAppointments.isEmpty) {
+            return const Center(child: Text("No appointments yet"));
           }
 
           return ListView.builder(
-            itemCount: approvedAppointments.length,
+            itemCount: allAppointments.length,
             itemBuilder: (context, index) {
-              final data = approvedAppointments[index];
+              final data = allAppointments[index];
               final id = data['appointmentId'];
               final isExpanded = _expandedMap[id] ?? false;
 
@@ -291,9 +297,7 @@ class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: isUpcoming
-                                      ? Colors.black
-                                      : Colors.grey,
+                                  color: isUpcoming ? Colors.black : Colors.grey,
                                 ),
                               ),
                             ),
@@ -314,10 +318,10 @@ class _ManageAppointmentsScreenState extends State<ManageAppointmentsScreen> {
                           ),
                         ),
                         Text(
-                          "Status: ${data['status'].toString().toUpperCase()}",
-                          style: const TextStyle(
+                          "Status: ${data['status']?.toString().toUpperCase() ?? 'N/A'}",
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Colors.green,
+                            color: getStatusColor(data['status'] ?? ''),
                           ),
                         ),
                         if (isExpanded) ...[

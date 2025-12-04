@@ -2,14 +2,15 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Full Chat Module (Option B)
-/// - ChatHomePage: decides role & shows appropriate entry (doctor sees chats, patient sees doctors/chat list)
-/// - ChatListPage: unified chat list for both roles (last message, unread count, timestamp)
-/// - DoctorSelectionPage: patient selects doctor to start chat
-/// - ChatDetailPage: real-time chat, typing indicator, read receipts
+/// Chat module using Firebase Realtime Database + FCM
+/// - chatRooms/{roomId}/messages/{msgId}
+/// - users/{uid}/fcmToken
+/// - doctors/{uid} (profile)
+/// - typing/{roomId}/{uid} = true/false
 
 class ChatHomePage extends StatefulWidget {
   const ChatHomePage({super.key});
@@ -29,6 +30,21 @@ class _ChatHomePageState extends State<ChatHomePage> {
   void initState() {
     super.initState();
     _loadUserRole();
+    _saveFcmTokenIfNeeded();
+  }
+
+  Future<void> _saveFcmTokenIfNeeded() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final fcm = FirebaseMessaging.instance;
+    final token = await fcm.getToken(); // may be null in emulator
+    if (token != null) {
+      await _db.child('users/${user.uid}/fcmToken').set(token);
+    }
+    // handle token refresh
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      _db.child('users/${user.uid}/fcmToken').set(newToken);
+    });
   }
 
   Future<void> _loadUserRole() async {
@@ -36,20 +52,18 @@ class _ChatHomePageState extends State<ChatHomePage> {
     if (user == null) return;
     final uid = user.uid;
 
-    // Try doctors node first
-    final DataSnapshot docSnap = await _db.child('doctors/$uid').get();
+    final docSnap = await _db.child('doctors/$uid').get();
     if (docSnap.exists) {
       final data = Map<String, dynamic>.from(docSnap.value as Map);
       setState(() {
         _role = data['role'] as String? ?? 'doctor';
         _displayName =
-            (data['firstName'] ?? data['name'] ?? data['name']) as String?;
+            (data['firstName'] ?? data['name'] ?? data['fullName']) as String?;
       });
       return;
     }
 
-    // Try users node
-    final DataSnapshot userSnap = await _db.child('users/$uid').get();
+    final userSnap = await _db.child('users/$uid').get();
     if (userSnap.exists) {
       final data = Map<String, dynamic>.from(userSnap.value as Map);
       setState(() {
@@ -60,7 +74,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
       return;
     }
 
-    // Default to patient if unknown
     setState(() {
       _role = 'patient';
       _displayName = user.email;
@@ -79,7 +92,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Header with role
                 Container(
                   width: double.infinity,
                   color: Colors.blueGrey[50],
@@ -93,8 +105,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
                     style: const TextStyle(fontSize: 14),
                   ),
                 ),
-
-                // Buttons / actions
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
@@ -123,8 +133,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
                     ],
                   ),
                 ),
-
-                // Chat list
                 Expanded(child: ChatListPage(role: _role!)),
               ],
             ),
@@ -132,9 +140,7 @@ class _ChatHomePageState extends State<ChatHomePage> {
   }
 }
 
-/// ------------------- Chat List Page -------------------
-/// Shows all chats for the current user (both roles).
-/// Displays last message, timestamp, unread count, companion's name & avatar.
+/// ---------------- Chat List ----------------
 class ChatListPage extends StatefulWidget {
   final String role;
   const ChatListPage({super.key, required this.role});
@@ -145,14 +151,14 @@ class ChatListPage extends StatefulWidget {
 
 class _ChatListPageState extends State<ChatListPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _chatsRef = FirebaseDatabase.instance.ref().child(
-    'chats',
-  );
-  final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
-    'doctors',
+  final DatabaseReference _roomsRef = FirebaseDatabase.instance.ref().child(
+    'chatRooms',
   );
   final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
     'users',
+  );
+  final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
+    'doctors',
   );
 
   @override
@@ -160,9 +166,9 @@ class _ChatListPageState extends State<ChatListPage> {
     final user = _auth.currentUser;
     if (user == null) return const Center(child: Text('Not logged in'));
 
-    // Stream entire chats node - we will filter client-side to keep structure simple.
+    // stream all rooms and filter locally for simplicity
     return StreamBuilder<DatabaseEvent>(
-      stream: _chatsRef.onValue,
+      stream: _roomsRef.onValue,
       builder: (context, snap) {
         if (snap.hasError) {
           return const Center(child: Text('Error loading chats'));
@@ -171,26 +177,23 @@ class _ChatListPageState extends State<ChatListPage> {
           return const Center(child: Text('No chats yet'));
         }
 
-        final allChats = Map<dynamic, dynamic>.from(
+        final all = Map<dynamic, dynamic>.from(
           snap.data!.snapshot.value as Map,
         );
-        final List<_ChatPreview> myChats = [];
+        final List<_RoomPreview> myRooms = [];
 
-        allChats.forEach((chatId, chatValue) {
-          final chat = Map<dynamic, dynamic>.from(chatValue);
-          final participants = List<dynamic>.from(chat['participants'] ?? []);
-          if (participants.contains(user.uid)) {
-            final lastMessage = chat['lastMessage'] as String? ?? '';
-            final lastTimestamp =
-                chat['lastTimestamp'] as int? ??
-                (chat['lastMessageAt'] != null
-                    ? int.tryParse(chat['lastMessageAt'].toString())
-                    : null) ??
-                0;
-            myChats.add(
-              _ChatPreview(
-                id: chatId,
-                participants: participants,
+        all.forEach((roomId, roomValue) {
+          final room = Map<dynamic, dynamic>.from(roomValue);
+          final participants = Map<dynamic, dynamic>.from(
+            room['participants'] ?? {},
+          );
+          if (participants.containsKey(user.uid)) {
+            final lastMessage = room['lastMessage'] as String? ?? '';
+            final lastTimestamp = room['lastTimestamp'] as int? ?? 0;
+            myRooms.add(
+              _RoomPreview(
+                id: roomId,
+                participants: participants.keys.cast<String>().toList(),
                 lastMessage: lastMessage,
                 lastTimestamp: lastTimestamp,
               ),
@@ -198,34 +201,28 @@ class _ChatListPageState extends State<ChatListPage> {
           }
         });
 
-        // Sort by lastTimestamp desc
-        myChats.sort((a, b) => b.lastTimestamp.compareTo(a.lastTimestamp));
-
-        if (myChats.isEmpty) return const Center(child: Text('No chats yet'));
+        myRooms.sort((a, b) => b.lastTimestamp.compareTo(a.lastTimestamp));
+        if (myRooms.isEmpty) return const Center(child: Text('No chats yet'));
 
         return ListView.builder(
-          itemCount: myChats.length,
-          itemBuilder: (context, index) {
-            final c = myChats[index];
-            final otherId = c.participants.firstWhere((p) => p != user.uid);
+          itemCount: myRooms.length,
+          itemBuilder: (context, i) {
+            final r = myRooms[i];
+            final otherId = r.participants.firstWhere((p) => p != user.uid);
             return FutureBuilder<_CompanionData>(
-              future: _fetchCompanionData(otherId),
+              future: _fetchCompanion(otherId),
               builder: (context, compSnap) {
-                final name = compSnap.hasData
-                    ? compSnap.data!.displayName
-                    : otherId;
-                final subtitle = c.lastMessage.isNotEmpty
-                    ? c.lastMessage
+                final display = compSnap.data?.displayName ?? otherId;
+                final subtitle = r.lastMessage.isNotEmpty
+                    ? r.lastMessage
                     : 'No messages yet';
                 return ListTile(
                   leading: CircleAvatar(
                     child: Text(
-                      name != null && name.length > 0
-                          ? name[0].toUpperCase()
-                          : '?',
+                      display.isNotEmpty ? display[0].toUpperCase() : '?',
                     ),
                   ),
-                  title: Text(name ?? 'Unknown'),
+                  title: Text(display),
                   subtitle: Text(
                     subtitle,
                     maxLines: 1,
@@ -234,11 +231,10 @@ class _ChatListPageState extends State<ChatListPage> {
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(_formatTimestamp(c.lastTimestamp)),
+                      Text(_formatTimestamp(r.lastTimestamp)),
                       const SizedBox(height: 6),
-                      // Unread count indicator
                       FutureBuilder<int>(
-                        future: _getUnreadCount(c.id, user.uid),
+                        future: _getUnreadCount(r.id, user.uid),
                         builder: (context, unreadSnap) {
                           final unread = unreadSnap.data ?? 0;
                           return unread > 0
@@ -264,13 +260,12 @@ class _ChatListPageState extends State<ChatListPage> {
                       ),
                     ],
                   ),
-                  onTap: () async {
-                    // Open chat
+                  onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            ChatDetailPage(chatId: c.id, doctorId: otherId),
+                        builder: (c) =>
+                            ChatDetailPage(roomId: r.id, otherId: otherId),
                       ),
                     );
                   },
@@ -283,51 +278,39 @@ class _ChatListPageState extends State<ChatListPage> {
     );
   }
 
-  Future<_CompanionData> _fetchCompanionData(String id) async {
-    // Try doctors node then users node
-    final DataSnapshot docSnap = await _doctorsRef.child(id).get();
-    if (docSnap.exists) {
-      final Map<String, dynamic> data = Map<String, dynamic>.from(
-        docSnap.value as Map,
-      );
-      final name =
-          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
-              as String;
-      final specialization = (data['specialization'] ?? '') as String;
-      return _CompanionData(displayName: name, subtitle: specialization);
-    }
-
-    final DataSnapshot userSnap = await _usersRef.child(id).get();
-    if (userSnap.exists) {
-      final Map<String, dynamic> data = Map<String, dynamic>.from(
-        userSnap.value as Map,
-      );
-      final name =
-          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
-              as String;
-      final subtitle = (data['email'] ?? '') as String;
-      return _CompanionData(displayName: name, subtitle: subtitle);
-    }
-
-    return _CompanionData(displayName: id, subtitle: '');
+  Future<int> _getUnreadCount(String roomId, String myUid) async {
+    final msgsSnap = await _roomsRef.child(roomId).child('messages').get();
+    if (!msgsSnap.exists) return 0;
+    final msgs = Map<dynamic, dynamic>.from(msgsSnap.value as Map);
+    int cnt = 0;
+    msgs.forEach((k, v) {
+      final m = Map<dynamic, dynamic>.from(v);
+      final seenBy = List<dynamic>.from(m['seenBy'] ?? []);
+      if (!seenBy.contains(myUid)) cnt++;
+    });
+    return cnt;
   }
 
-  Future<int> _getUnreadCount(String chatId, String myUid) async {
-    final DataSnapshot snap = await _chatsRef
-        .child(chatId)
-        .child('messages')
-        .get();
-    if (!snap.exists) return 0;
-    final Map<dynamic, dynamic> msgs = Map<dynamic, dynamic>.from(
-      snap.value as Map,
-    );
-    int unread = 0;
-    msgs.forEach((k, v) {
-      final msg = Map<dynamic, dynamic>.from(v);
-      final readBy = List<dynamic>.from(msg['readBy'] ?? []);
-      if (!readBy.contains(myUid)) unread++;
-    });
-    return unread;
+  Future<_CompanionData> _fetchCompanion(String id) async {
+    final docSnap = await _doctorsRef.child(id).get();
+    if (docSnap.exists) {
+      final data = Map<String, dynamic>.from(docSnap.value as Map);
+      final name =
+          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
+              as String;
+      final spec = (data['specialization'] ?? '') as String;
+      return _CompanionData(displayName: name, subtitle: spec);
+    }
+    final userSnap = await _usersRef.child(id).get();
+    if (userSnap.exists) {
+      final data = Map<String, dynamic>.from(userSnap.value as Map);
+      final name =
+          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
+              as String;
+      final email = (data['email'] ?? '') as String;
+      return _CompanionData(displayName: name, subtitle: email);
+    }
+    return _CompanionData(displayName: id, subtitle: '');
   }
 
   String _formatTimestamp(int tsMillis) {
@@ -337,18 +320,18 @@ class _ChatListPageState extends State<ChatListPage> {
     if (dt.year == today.year &&
         dt.month == today.month &&
         dt.day == today.day) {
-      return DateFormat.Hm().format(dt); // 13:24
+      return DateFormat.Hm().format(dt);
     }
-    return DateFormat('dd MMM').format(dt); // 01 Dec
+    return DateFormat('dd MMM').format(dt);
   }
 }
 
-class _ChatPreview {
+class _RoomPreview {
   final String id;
-  final List<dynamic> participants;
+  final List<String> participants;
   final String lastMessage;
   final int lastTimestamp;
-  _ChatPreview({
+  _RoomPreview({
     required this.id,
     required this.participants,
     required this.lastMessage,
@@ -362,11 +345,9 @@ class _CompanionData {
   _CompanionData({this.displayName, this.subtitle});
 }
 
-/// ------------------- Doctor Selection Page -------------------
-/// Patients will use this to pick a doctor and start chat
+/// ---------------- Doctor Selection ----------------
 class DoctorSelectionPage extends StatefulWidget {
   const DoctorSelectionPage({super.key});
-
   @override
   State<DoctorSelectionPage> createState() => _DoctorSelectionPageState();
 }
@@ -375,39 +356,35 @@ class _DoctorSelectionPageState extends State<DoctorSelectionPage> {
   final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
     'doctors',
   );
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final DatabaseReference _chatsRef = FirebaseDatabase.instance.ref().child(
-    'chats',
+  final DatabaseReference _roomsRef = FirebaseDatabase.instance.ref().child(
+    'chatRooms',
   );
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<String> _createOrGetChat(String otherId) async {
+  Future<String> _createOrGetRoom(String otherId) async {
     final uid = _auth.currentUser!.uid;
-
-    // Search existing chats where participants include both uids
-    final DataSnapshot snap = await _chatsRef.get();
+    final snap = await _roomsRef.get();
     if (snap.exists) {
-      final Map<dynamic, dynamic> data = Map<dynamic, dynamic>.from(
-        snap.value as Map,
-      );
+      final data = Map<dynamic, dynamic>.from(snap.value as Map);
       for (var entry in data.entries) {
-        final chatId = entry.key;
-        final chat = Map<dynamic, dynamic>.from(entry.value);
-        final participants = List<dynamic>.from(chat['participants'] ?? []);
-        if (participants.contains(uid) && participants.contains(otherId)) {
-          return chatId;
+        final id = entry.key;
+        final room = Map<dynamic, dynamic>.from(entry.value);
+        final participants = Map<dynamic, dynamic>.from(
+          room['participants'] ?? {},
+        );
+        if (participants.containsKey(uid) &&
+            participants.containsKey(otherId)) {
+          return id;
         }
       }
     }
-
-    // Create new chat
-    final newRef = _chatsRef.push();
-    final createdAt = DateTime.now().millisecondsSinceEpoch;
+    final newRef = _roomsRef.push();
+    final now = DateTime.now().millisecondsSinceEpoch;
     await newRef.set({
-      'participants': [uid, otherId],
+      'participants': {uid: true, otherId: true},
       'lastMessage': '',
-      'lastTimestamp': createdAt,
-      'createdAt': createdAt,
-      'typing': {}, // typing map
+      'lastTimestamp': now,
+      'createdAt': now,
     });
     return newRef.key!;
   }
@@ -425,36 +402,35 @@ class _DoctorSelectionPageState extends State<DoctorSelectionPage> {
           if (!snap.hasData || snap.data!.snapshot.value == null) {
             return const Center(child: CircularProgressIndicator());
           }
-
           final doctors = Map<dynamic, dynamic>.from(
             snap.data!.snapshot.value as Map,
           );
           final items = doctors.entries.toList();
-
           return ListView.builder(
             itemCount: items.length,
-            itemBuilder: (context, index) {
-              final docId = items[index].key;
-              final doc = Map<dynamic, dynamic>.from(items[index].value);
+            itemBuilder: (context, i) {
+              final docId = items[i].key;
+              final doc = Map<dynamic, dynamic>.from(items[i].value);
               final name =
                   doc['firstName'] ??
                   doc['name'] ??
                   doc['fullName'] ??
                   'Doctor';
-              final specialization = doc['specialization'] ?? '';
-
+              final spec = doc['specialization'] ?? '';
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(name),
-                subtitle: Text(specialization),
+                subtitle: Text(spec),
                 onTap: () async {
-                  final chatId = await _createOrGetChat(docId);
+                  final roomId = await _createOrGetRoom(docId);
+                  if (!mounted) return;
+                  // ignore: use_build_context_synchronously
                   Navigator.pushReplacement(
                     // ignore: use_build_context_synchronously
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          ChatDetailPage(chatId: chatId, doctorId: docId),
+                      builder: (c) =>
+                          ChatDetailPage(roomId: roomId, otherId: docId),
                     ),
                   );
                 },
@@ -467,17 +443,14 @@ class _DoctorSelectionPageState extends State<DoctorSelectionPage> {
   }
 }
 
-/// ------------------- Chat Detail Page -------------------
-/// Handles message send/read/typing
+/// ---------------- Chat Detail ----------------
 class ChatDetailPage extends StatefulWidget {
-  final String chatId;
-  final String
-  doctorId; // other participant id (doctor). For doctor view, patient id is the other side
-
+  final String roomId;
+  final String otherId; // other participant id (doctor or patient)
   const ChatDetailPage({
     super.key,
-    required this.chatId,
-    required this.doctorId,
+    required this.roomId,
+    required this.otherId,
   });
 
   @override
@@ -485,124 +458,129 @@ class ChatDetailPage extends StatefulWidget {
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
-  final DatabaseReference _chatsRef = FirebaseDatabase.instance.ref().child(
-    'chats',
+  final DatabaseReference _roomsRef = FirebaseDatabase.instance.ref().child(
+    'chatRooms',
+  );
+  final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
+    'doctors',
+  );
+  final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
+    'users',
   );
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final String myUid;
+  bool _otherTyping = false;
+  StreamSubscription<DatabaseEvent>? _typingSub;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-
-  late final String myUid;
-  late final String otherId; // other participant id
-
-  StreamSubscription<DatabaseEvent>? _typingSub;
-  bool _otherTyping = false;
-  Timer? _typingTimer;
 
   @override
   void initState() {
     super.initState();
     myUid = _auth.currentUser!.uid;
-    otherId = widget.doctorId;
-    _markMessagesRead();
-    _setupTypingListener();
+    _listenTyping();
+    // mark read initially
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markAllSeen();
+      _scrollToBottomDelayed();
+    });
   }
 
   @override
   void dispose() {
     _typingSub?.cancel();
-    _typingTimer?.cancel();
-    _setTyping(false);
     _controller.dispose();
     _scrollController.dispose();
+    _setTyping(false);
     super.dispose();
   }
 
-  Future<void> _setupTypingListener() async {
-    _typingSub = _chatsRef.child(widget.chatId).child('typing').onValue.listen((
-      event,
-    ) {
-      if (event.snapshot.value == null) {
-        setState(() => _otherTyping = false);
-        return;
-      }
-      final Map<dynamic, dynamic> typingMap = Map<dynamic, dynamic>.from(
-        event.snapshot.value as Map,
-      );
-      // Consider other typing true if there's an entry for otherId === true
-      final val = typingMap[otherId];
-      setState(() => _otherTyping = val == true);
-    });
+  void _listenTyping() {
+    _typingSub = FirebaseDatabase.instance
+        .ref()
+        .child('typing')
+        .child(widget.roomId)
+        .onValue
+        .listen((event) {
+          if (event.snapshot.value == null) {
+            setState(() => _otherTyping = false);
+            return;
+          }
+          final tmap = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+          final val = tmap[widget.otherId];
+          setState(() => _otherTyping = val == true);
+        });
   }
 
-  Future<void> _setTyping(bool typing) async {
-    // Set typing map under chatId/typing/{myUid} = true/false
-    await _chatsRef.child(widget.chatId).child('typing').update({
-      myUid: typing,
-    });
+  Future<void> _setTyping(bool val) async {
+    await FirebaseDatabase.instance
+        .ref()
+        .child('typing')
+        .child(widget.roomId)
+        .update({myUid: val});
   }
 
-  Future<void> _markMessagesRead() async {
-    // Mark all messages as read by adding myUid to readBy
-    final messagesSnap = await _chatsRef
-        .child(widget.chatId)
+  Future<void> _markAllSeen() async {
+    final msgsSnap = await _roomsRef
+        .child(widget.roomId)
         .child('messages')
         .get();
-    if (!messagesSnap.exists) return;
-    final msgs = Map<dynamic, dynamic>.from(messagesSnap.value as Map);
-    for (var entry in msgs.entries) {
-      final key = entry.key;
-      final msg = Map<dynamic, dynamic>.from(entry.value);
-      final readBy = List<dynamic>.from(msg['readBy'] ?? []);
-      if (!readBy.contains(myUid)) {
-        readBy.add(myUid);
-        await _chatsRef
-            .child(widget.chatId)
+    if (!msgsSnap.exists) return;
+    final msgs = Map<dynamic, dynamic>.from(msgsSnap.value as Map);
+    for (var e in msgs.entries) {
+      final key = e.key;
+      final m = Map<dynamic, dynamic>.from(e.value);
+      final seenBy = List<dynamic>.from(m['seenBy'] ?? []);
+      if (!seenBy.contains(myUid)) {
+        seenBy.add(myUid);
+        await _roomsRef
+            .child(widget.roomId)
             .child('messages')
             .child(key)
-            .update({'readBy': readBy});
+            .update({'seenBy': seenBy});
       }
     }
+    // also update lastRead timestamp for user (optional)
+    await _roomsRef
+        .child(widget.roomId)
+        .child('lastRead')
+        .child(myUid)
+        .set(DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final msgRef = _chatsRef.child(widget.chatId).child('messages').push();
-
-    await msgRef.set({
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final msgRef = _roomsRef.child(widget.roomId).child('messages').push();
+    final payload = {
       'senderId': myUid,
+      'receiverId': widget.otherId,
       'text': text,
-      'timestamp': timestamp,
-      'readBy': [myUid], // sender already read it
-    });
-
-    // Update last message on chat
-    await _chatsRef.child(widget.chatId).update({
+      'timestamp': ts,
+      'type': 'text',
+      'seenBy': [myUid], // sender already read
+    };
+    await msgRef.set(payload);
+    await _roomsRef.child(widget.roomId).update({
       'lastMessage': text,
-      'lastTimestamp': timestamp,
+      'lastTimestamp': ts,
     });
-
     _controller.clear();
-    _setTyping(false);
-
-    // auto-scroll
-    await Future.delayed(const Duration(milliseconds: 120));
-    _scrollToBottom();
+    await _setTyping(false);
+    _scrollToBottomDelayed();
+    // no client-side FCM sending here; Cloud Function will observe the new message and send push.
   }
 
-  void _onTextChanged(String text) {
-    // set typing true and set a short timer to clear
+  void _onTextChanged(String v) {
     _setTyping(true);
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 2), () {
+    Timer(const Duration(seconds: 2), () {
       _setTyping(false);
     });
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottomDelayed() async {
+    await Future.delayed(const Duration(milliseconds: 150));
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent + 80,
@@ -612,46 +590,41 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     }
   }
 
-  Future<_CompanionData> _fetchCompanion() async {
-    final doctorsRef = FirebaseDatabase.instance.ref().child('doctors');
-    final usersRef = FirebaseDatabase.instance.ref().child('users');
-
-    final docSnap = await doctorsRef.child(otherId).get();
-    if (docSnap.exists) {
-      final data = Map<String, dynamic>.from(docSnap.value as Map);
-      final name =
-          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
-              as String;
-      final subtitle = data['specialization'] ?? '';
-      return _CompanionData(displayName: name, subtitle: subtitle);
-    }
-
-    final userSnap = await usersRef.child(otherId).get();
-    if (userSnap.exists) {
-      final data = Map<String, dynamic>.from(userSnap.value as Map);
-      final name =
-          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
-              as String;
-      final subtitle = data['email'] ?? '';
-      return _CompanionData(displayName: name, subtitle: subtitle);
-    }
-
-    return _CompanionData(displayName: otherId, subtitle: '');
-  }
-
   String _formatTime(int millis) {
     final dt = DateTime.fromMillisecondsSinceEpoch(millis);
     return DateFormat('hh:mm a').format(dt);
   }
 
+  Future<_CompanionData> _fetchCompanion() async {
+    final docSnap = await _doctorsRef.child(widget.otherId).get();
+    if (docSnap.exists) {
+      final data = Map<String, dynamic>.from(docSnap.value as Map);
+      final name =
+          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
+              as String;
+      final spec = (data['specialization'] ?? '') as String;
+      return _CompanionData(displayName: name, subtitle: spec);
+    }
+    final userSnap = await _usersRef.child(widget.otherId).get();
+    if (userSnap.exists) {
+      final data = Map<String, dynamic>.from(userSnap.value as Map);
+      final name =
+          (data['firstName'] ?? data['name'] ?? data['fullName'] ?? '')
+              as String;
+      final email = (data['email'] ?? '') as String;
+      return _CompanionData(displayName: name, subtitle: email);
+    }
+    return _CompanionData(displayName: widget.otherId, subtitle: '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final chatStream = _chatsRef.child(widget.chatId).onValue;
-
+    final stream = _roomsRef.child(widget.roomId).onValue;
     return FutureBuilder<_CompanionData>(
       future: _fetchCompanion(),
       builder: (context, compSnap) {
         final companionName = compSnap.data?.displayName ?? 'Chat';
+        final companionSubtitle = compSnap.data?.subtitle ?? '';
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -662,8 +635,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(companionName, style: const TextStyle(fontSize: 16)),
-                    if (_otherTyping)
-                      const Text('typing...', style: TextStyle(fontSize: 12)),
+                    Text(
+                      companionSubtitle,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ],
@@ -673,23 +648,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             children: [
               Expanded(
                 child: StreamBuilder<DatabaseEvent>(
-                  stream: chatStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
+                  stream: stream,
+                  builder: (context, snap) {
+                    if (snap.hasError) {
                       return const Center(child: Text('Error'));
                     }
-                    if (!snapshot.hasData ||
-                        snapshot.data!.snapshot.value == null) {
+                    if (!snap.hasData || snap.data!.snapshot.value == null) {
                       return const Center(child: Text('No messages yet'));
                     }
-
-                    final chatMap = Map<String, dynamic>.from(
-                      snapshot.data!.snapshot.value as Map,
+                    final room = Map<String, dynamic>.from(
+                      snap.data!.snapshot.value as Map,
                     );
                     final msgsMap =
-                        chatMap['messages'] as Map<dynamic, dynamic>? ?? {};
-
-                    final messages =
+                        room['messages'] as Map<dynamic, dynamic>? ?? {};
+                    final msgs =
                         msgsMap.entries.map((e) {
                           final m = Map<String, dynamic>.from(e.value as Map);
                           m['id'] = e.key;
@@ -700,19 +672,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           ),
                         );
 
-                    // Mark unread as read for current user
-                    _markMessagesRead();
+                    // mark seen after getting new data
+                    _markAllSeen();
 
                     return ListView.builder(
                       controller: _scrollController,
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final m = messages[index];
+                      itemCount: msgs.length,
+                      itemBuilder: (context, i) {
+                        final m = msgs[i];
                         final isMe = m['senderId'] == myUid;
-                        final text = m['text'] ?? '';
+                        final txt = m['text'] ?? '';
                         final ts = m['timestamp'] as int? ?? 0;
-                        final readBy = List<dynamic>.from(m['readBy'] ?? []);
-                        final bool isReadByOther = readBy.contains(otherId);
+                        final seenBy = List<dynamic>.from(m['seenBy'] ?? []);
+                        final seenByOther = seenBy.contains(widget.otherId);
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -738,7 +710,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                       : Colors.grey[200],
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(text),
+                                child: Text(txt),
                               ),
                               const SizedBox(height: 4),
                               Row(
@@ -754,11 +726,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                   const SizedBox(width: 6),
                                   if (isMe)
                                     Icon(
-                                      isReadByOther
-                                          ? Icons.done_all
-                                          : Icons.done,
+                                      seenByOther ? Icons.done_all : Icons.done,
                                       size: 14,
-                                      color: isReadByOther
+                                      color: seenByOther
                                           ? Colors.blue
                                           : Colors.grey,
                                     ),
@@ -772,13 +742,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   },
                 ),
               ),
-
-              // Typing indicator placeholder area
               if (_otherTyping)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 4,
+                    vertical: 6,
                   ),
                   child: Align(
                     alignment: Alignment.centerLeft,
@@ -787,8 +755,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     ),
                   ),
                 ),
-
-              // Input box
               SafeArea(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -829,4 +795,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       },
     );
   }
+
+  // ignore: unused_element
 }

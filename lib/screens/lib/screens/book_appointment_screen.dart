@@ -57,14 +57,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
   }
 
-  List<TimeOfDay> _generateTimeSlots() {
-    // Slots from 9 AM to 5 PM every 30 mins
-    List<TimeOfDay> slots = [];
-    for (int hour = 9; hour <= 16; hour++) {
-      slots.add(TimeOfDay(hour: hour, minute: 0));
-      slots.add(TimeOfDay(hour: hour, minute: 30));
+  List<String> _generateTimeSlots() {
+    List<String> slots = [];
+    for (int hour = 0; hour < 24; hour++) {
+      final formattedHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+      final period = hour < 12 ? "AM" : "PM";
+      slots.add('$formattedHour:00 $period');
     }
-    slots.add(const TimeOfDay(hour: 17, minute: 0));
     return slots;
   }
 
@@ -239,8 +238,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   itemBuilder: (context, index) {
                     final time = timeSlots[index];
                     final isBooked = _isSlotBooked(
-                      time,
+                      time as TimeOfDay,
                     ); // now disables all if one booked
+                    // ignore: unrelated_type_equality_checks
                     final isSelected = _selectedTime == time;
 
                     return GestureDetector(
@@ -249,7 +249,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           : () {
                               if (!mounted) return;
                               setState(() {
-                                _selectedTime = time;
+                                _selectedTime = time as TimeOfDay?;
                               });
                             },
                       child: Container(
@@ -263,7 +263,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          time.format(context),
+                          time,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

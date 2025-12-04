@@ -85,7 +85,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
         ? _doctors
         : _doctors
               .where(
-                (d) => d.specializations.any(
+                (d) => d.specialization.any(
                   (s) =>
                       s.toLowerCase().contains(_selectedCategory.toLowerCase()),
                 ),
@@ -190,7 +190,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    doctor.specializations.join(', '),
+                                    doctor.specialization.join(', '),
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                   trailing: ElevatedButton(

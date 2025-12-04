@@ -1,15 +1,18 @@
-import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_book.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/patient_reports_screen.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
-import 'package:dr_shahin_uk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
+// Screens
+import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_book.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/manage_patients_screen.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
+
+// Services
+import 'package:dr_shahin_uk/services/notification_service.dart';
 
 class ConsultingDoctorDashboard extends StatefulWidget {
   const ConsultingDoctorDashboard({super.key});
@@ -134,65 +137,49 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
     setState(() => _patients = loadedPatients);
   }
 
-  void _pickPatientAndUpload() {
-    if (_patients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No patients assigned yet.")),
-      );
-      return;
-    }
+  // LAB APPOINTMENT BOOKING - always accessible
+  void _openLabAppointmentPage() {
+    final doctorId = _auth.currentUser!.uid;
 
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Lab Appointment Booking"),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _patients.length,
-              itemBuilder: (context, index) {
-                final patient = _patients[index];
-                return ListTile(
-                  title: Text(patient['name']!),
-                  onTap: () {
-                    Navigator.pop(context);
-                    final doctorId = _auth.currentUser!.uid;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => LabAppointmentPage(
-                          patientId: patient['uid']!,
-                          patientName: patient['name']!,
-                          doctorId: doctorId,
-                          doctorName: 'doctorName',
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LabAppointmentPage(
+          patientId: '', // allow manual entry in LabAppointmentPage
+          patientName: '',
+          doctorId: doctorId,
+          doctorName: _doctorName,
+        ),
+      ),
     );
   }
 
+  // LAB APPOINTMENT LIST PAGE
+  void _openLabAppointmentListPage() {
+    final doctorId = _auth.currentUser!.uid;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LabAppointmentListPage(
+          patientId: '', // can fetch for all patients
+          patientName: '',
+          doctorId: doctorId,
+          doctorName: _doctorName,
+        ),
+      ),
+    );
+  }
+
+  // MANAGE PATIENT RECORDS
   void _pickPatientToViewDocuments() {
-    if (_patients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No patients assigned yet.")),
-      );
-      return;
-    }
+    final doctorId = _auth.currentUser!.uid;
 
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text("View Lab Appointments for Patient"),
+          title: const Text("Manage Patient Records"),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -204,61 +191,13 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                   title: Text(patient['name']!),
                   onTap: () {
                     Navigator.pop(context);
-                    final doctorId = _auth.currentUser!.uid;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => LabAppointmentListPage(
+                        builder: (_) => ManagePatientsScreen(
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
                           doctorId: doctorId,
-                          doctorName: _doctorName,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _pickPatientToViewReports() {
-    if (_patients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No patients assigned yet.")),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Select Patient to View Reports"),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _patients.length,
-              itemBuilder: (context, index) {
-                final patient = _patients[index];
-                return ListTile(
-                  title: Text(patient['name']!),
-                  onTap: () {
-                    Navigator.pop(context);
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PatientReportsScreen(
-                          patientId: patient['uid']!,
-                          patientName: patient['name']!,
-                          doctorId: _auth.currentUser!.uid,
-                          doctorName: _doctorName,
                         ),
                       ),
                     );
@@ -367,28 +306,24 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     );
                   },
                 ),
-
-                _dashboardCard(Icons.upload_file, "Upload Reports", [
+                _dashboardCard(Icons.upload_file, "Lab Appointment", [
                   Colors.red,
                   Colors.orange,
-                ], _pickPatientAndUpload),
-
-                _dashboardCard(Icons.folder_open, "View Documents", [
+                ], _openLabAppointmentPage),
+                _dashboardCard(
+                  Icons.list_alt,
+                  "Lab Appointments List",
+                  [Colors.purple, Colors.deepPurpleAccent],
+                  _openLabAppointmentListPage,
+                ),
+                _dashboardCard(Icons.folder_open, "Manage Patients", [
                   Colors.orange,
                   Colors.deepOrange,
                 ], _pickPatientToViewDocuments),
-
                 _dashboardCard(Icons.share, "Shared Reports", [
                   Colors.teal,
                   Colors.cyan,
                 ], _openSharedReports),
-
-                // ✅ ADDED VIEW REPORTS CARD
-                _dashboardCard(Icons.description, "View Reports", [
-                  Colors.purple,
-                  Colors.deepPurpleAccent,
-                ], _pickPatientToViewReports),
-
                 _dashboardCard(
                   Icons.chat,
                   "Chats",
@@ -411,7 +346,6 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-
             _loadingAppointments
                 ? const Center(child: CircularProgressIndicator())
                 : _appointments.isEmpty

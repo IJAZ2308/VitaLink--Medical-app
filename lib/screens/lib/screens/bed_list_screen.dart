@@ -335,7 +335,9 @@ class BedListScreen extends StatefulWidget {
 }
 
 class BedListScreenState extends State<BedListScreen> {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child('hospitals');
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
+    'hospitals',
+  );
   List<Map<String, dynamic>> hospitals = [];
   Position? _currentPosition;
   StreamSubscription<Position>? _positionSubscription;
@@ -368,7 +370,7 @@ class BedListScreenState extends State<BedListScreen> {
         });
       }
 
-      /// Add distance sorting
+      /// Sort by distance
       if (_currentPosition != null) {
         tempHospitals = tempHospitals.where((hospital) {
           double? hLat = hospital['latitude'];
@@ -401,7 +403,7 @@ class BedListScreenState extends State<BedListScreen> {
     });
   }
 
-  /// Stream user's location
+  /// Track location
   Future<void> _initLocationStream() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -413,15 +415,16 @@ class BedListScreenState extends State<BedListScreen> {
     }
     if (permission == LocationPermission.deniedForever) return;
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 50,
-      ),
-    ).listen((Position position) {
-      setState(() => _currentPosition = position);
-      _fetchHospitalsRealtime();
-    });
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 50,
+          ),
+        ).listen((Position position) {
+          setState(() => _currentPosition = position);
+          _fetchHospitalsRealtime();
+        });
   }
 
   Future<void> _launchUrl(String urlString) async {
@@ -439,7 +442,7 @@ class BedListScreenState extends State<BedListScreen> {
 
   Future<void> _launchWebsite(String url) async => _launchUrl(url);
 
-  /// For handling different bed formats
+  /// Bed count logic
   int _getTotalBeds(dynamic beds) {
     if (beds == null) return 0;
     if (beds is int) return beds;
@@ -455,27 +458,17 @@ class BedListScreenState extends State<BedListScreen> {
     if (beds == null) {
       return const Text("Beds: N/A", style: TextStyle(fontSize: 14));
     }
-    if (beds is Map) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: beds.entries.map((entry) {
-          int count = _getTotalBeds(entry.value);
-          return Text(
-            "${entry.key.toUpperCase()} Beds: $count",
-            style: TextStyle(fontSize: 14, color: count == 0 ? Colors.red : Colors.black),
-          );
-        }).toList(),
-      );
-    } else {
-      int count = _getTotalBeds(beds);
-      return Text(
-        "Total Beds: $count",
-        style: TextStyle(fontSize: 14, color: count == 0 ? Colors.red : Colors.black),
-      );
-    }
+    int count = _getTotalBeds(beds);
+    return Text(
+      "Total Beds: $count",
+      style: TextStyle(
+        fontSize: 14,
+        color: count == 0 ? Colors.red : Colors.black,
+      ),
+    );
   }
 
-  /// OPEN BOOKING SCREEN
+  /// GO TO BOOKING SCREEN
   void _bookBed(Map<String, dynamic> hospital) {
     Navigator.push(
       context,
@@ -495,10 +488,12 @@ class BedListScreenState extends State<BedListScreen> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
-                "Your Location: "
-                "(${_currentPosition!.latitude.toStringAsFixed(4)}, "
+                "Your Location: (${_currentPosition!.latitude.toStringAsFixed(4)}, "
                 "${_currentPosition!.longitude.toStringAsFixed(4)})",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
 
@@ -509,9 +504,9 @@ class BedListScreenState extends State<BedListScreen> {
                     itemCount: hospitals.length,
                     itemBuilder: (context, index) {
                       final hospital = hospitals[index];
-
-                      /// FIXED: correct key is 'availableBeds'
-                      final totalBeds = _getTotalBeds(hospital['availableBeds']);
+                      final totalBeds = _getTotalBeds(
+                        hospital['availableBeds'],
+                      );
 
                       return Card(
                         margin: const EdgeInsets.all(10),
@@ -532,37 +527,49 @@ class BedListScreenState extends State<BedListScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _buildBedCount(hospital['availableBeds']),
-
                                     if (hospital.containsKey('distance'))
-                                      Text("Distance: ${hospital['distance']} km"),
-
-                                    /// FIXED: correct key is 'phone'
-                                    Text("Contact: ${hospital['phone'] ?? 'N/A'}"),
+                                      Text(
+                                        "Distance: ${hospital['distance']} km",
+                                      ),
+                                    Text(
+                                      "Contact: ${hospital['phone'] ?? 'N/A'}",
+                                    ),
                                   ],
                                 ),
-
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.map, color: Colors.blue),
+                                      icon: const Icon(
+                                        Icons.map,
+                                        color: Colors.blue,
+                                      ),
                                       onPressed: () => _launchMap(
                                         hospital['latitude'],
                                         hospital['longitude'],
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.phone, color: Colors.green),
-                                      onPressed: () => _launchCaller(hospital['phone'] ?? ""),
+                                      icon: const Icon(
+                                        Icons.phone,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: () => _launchCaller(
+                                        hospital['phone'] ?? "",
+                                      ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.web, color: Colors.orange),
-                                      onPressed: () => _launchWebsite(hospital['website'] ?? ""),
+                                      icon: const Icon(
+                                        Icons.web,
+                                        color: Colors.orange,
+                                      ),
+                                      onPressed: () => _launchWebsite(
+                                        hospital['website'] ?? "",
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -570,24 +577,32 @@ class BedListScreenState extends State<BedListScreen> {
 
                               const SizedBox(height: 10),
 
+                              /// BOOK BED BUTTON
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blueAccent,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
                                 ),
-                                icon: const Icon(Icons.local_hotel, color: Colors.white),
-
-                                /// FIXED: using correct bed count
+                                icon: const Icon(
+                                  Icons.local_hotel,
+                                  color: Colors.white,
+                                ),
                                 label: Text(
                                   "Book Bed ($totalBeds)",
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
                                 ),
-
-                                /// FIXED: button works if beds > 0
-                                onPressed: totalBeds > 0 ? () => _bookBed(hospital) : null,
+                                onPressed: totalBeds > 0
+                                    ? () => _bookBed(hospital)
+                                    : null,
                               ),
                             ],
                           ),

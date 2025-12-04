@@ -312,6 +312,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'appointments',
   );
+
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   String _selectedFilter = "Present"; // Today / Past / Future
@@ -325,15 +326,25 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     }
   }
 
+  // ---------- UPDATED STATUS LOGIC ----------
   String _getStatus(Map<dynamic, dynamic> data, DateTime dt) {
     if (data['visited'] == true) return "Visited";
+
+    if (data['confirmedByDoctor'] == true) return "Confirmed";
+
     if (DateTime.now().isBefore(dt)) return "Pending";
+
     return "Not Visited";
   }
 
+  // ---------- UPDATED STATUS COLOR ----------
   Color _getStatusColor(Map<dynamic, dynamic> data, DateTime dt) {
     if (data['visited'] == true) return Colors.green;
+
+    if (data['confirmedByDoctor'] == true) return Colors.blue;
+
     if (DateTime.now().isBefore(dt)) return Colors.orange;
+
     return Colors.red;
   }
 
@@ -361,6 +372,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
 
     if (confirm == true) {
       await _dbRef.child(appointmentId).remove();
+
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -423,6 +435,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
       body: Column(
         children: [
           const SizedBox(height: 16),
+
           // ---------- FILTER ----------
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -451,6 +464,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
               onChanged: (value) => setState(() => _selectedFilter = value!),
             ),
           ),
+
           const SizedBox(height: 16),
 
           // ---------- APPOINTMENT LIST ----------
@@ -469,17 +483,19 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
 
                 final Map<dynamic, dynamic> data =
                     snapshot.data!.snapshot.value as Map;
+
                 final List<Map<String, dynamic>> appointments = [];
 
                 data.forEach((key, value) {
                   final appt = Map<String, dynamic>.from(value);
+
                   if (appt['patientId'] == _currentUser.uid) {
                     appt['id'] = key;
                     appointments.add(appt);
                   }
                 });
 
-                // ---------- FILTER ----------
+                // ---------- APPLY FILTER ----------
                 appointments.retainWhere((appt) {
                   final dt = _safeParseDateTime(appt);
                   final apptDay = DateTime(dt.year, dt.month, dt.day);
@@ -488,6 +504,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                     DateTime.now().month,
                     DateTime.now().day,
                   );
+
                   if (_selectedFilter == "Present") return apptDay == todayDay;
                   if (_selectedFilter == "Past") {
                     return apptDay.isBefore(todayDay);
@@ -518,12 +535,22 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                     final formattedDate = DateFormat(
                       'dd MMM yyyy, hh:mm a',
                     ).format(apptDateTime);
+
                     final status = _getStatus(appt, apptDateTime);
                     final statusColor = _getStatusColor(appt, apptDateTime);
 
-                    // ---------- ALL FUTURE APPOINTMENTS CAN BE EDITED OR CANCELLED ----------
-                    final canReschedule = apptDateTime.isAfter(DateTime.now());
-                    final canCancel = apptDateTime.isAfter(DateTime.now());
+                    // -------------------
+                    // UPDATED CONDITIONS
+                    // -------------------
+                    final isConfirmed = appt['confirmedByDoctor'] == true
+                        ? true
+                        : false;
+
+                    final canReschedule =
+                        apptDateTime.isAfter(DateTime.now()) && !isConfirmed;
+
+                    final canCancel =
+                        apptDateTime.isAfter(DateTime.now()) && !isConfirmed;
 
                     return Card(
                       margin: const EdgeInsets.all(8),

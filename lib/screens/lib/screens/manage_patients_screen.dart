@@ -6,7 +6,12 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class ManagePatientsScreen extends StatefulWidget {
-  const ManagePatientsScreen({super.key});
+  const ManagePatientsScreen({
+    super.key,
+    required String patientId,
+    required String patientName,
+    required String doctorId,
+  });
 
   @override
   State<ManagePatientsScreen> createState() => _ManagePatientsScreenState();
@@ -48,7 +53,6 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
         },
       });
 
-      // Dummy POST request to FCM endpoint (replace YOUR_SERVER_KEY with real key)
       await http.post(
         Uri.parse('https://fcm.googleapis.com/fcm/send'),
         headers: {
@@ -77,7 +81,8 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
 
   // ---------------- VERIFY / DELETE PATIENT ----------------
   void _updateVerification(String patientId, bool isVerified) async {
-    await _patientsRef.child(patientId).update({'verified': isVerified});
+    // Update correct field in Firebase
+    await _patientsRef.child(patientId).update({'isVerified': isVerified});
 
     String statusText = isVerified ? 'verified' : 'rejected';
     await _sendNotification(
@@ -129,11 +134,13 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
     for (var entry in patientsMap.entries) {
       final data = Map<String, dynamic>.from(entry.value as Map);
 
-      // ✅ Only include patients
-      if ((data['role'] ?? 'patient') != 'patient') continue;
+      // ✅ Only include patients (case-insensitive check)
+      String role = (data['role'] ?? 'patient').toString().toLowerCase();
+      if (role != 'patient') continue;
 
       data['patientId'] = entry.key;
 
+      // Fix unknown names
       if (data['name'] == "Unknown") {
         for (var appt in appointmentsMap.values) {
           final apptData = Map<String, dynamic>.from(appt);
@@ -188,7 +195,8 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Email: ${data['email'] ?? 'N/A'}"),
-                      Text("Verified: ${data['verified'] ?? false}"),
+                      // ✅ Fixed field
+                      Text("Verified: ${data['isVerified'] ?? false}"),
                       if (averageRating > 0)
                         Text("Rating: ${averageRating.toStringAsFixed(1)}"),
                     ],

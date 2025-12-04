@@ -17,7 +17,7 @@ class Doctor {
   final bool isVerified;
   final String workingAt; // Hospital name
   final String status; // pending / approved / rejected
-  final List<String> specializations; // ✅ Multiple specializations
+  final List<String> specialization; // ✅ Multiple specializations
 
   Doctor({
     required this.uid,
@@ -38,7 +38,7 @@ class Doctor {
     required this.isVerified,
     required this.workingAt,
     required this.status,
-    required this.specializations,
+    required this.specialization,
   });
 
   factory Doctor.fromMap(
@@ -64,8 +64,8 @@ class Doctor {
       isVerified: data['isVerified'] ?? false,
       workingAt: data['workingAt'] ?? 'Unknown Hospital',
       status: data['status'] ?? 'pending',
-      specializations: data['specializations'] != null
-          ? List<String>.from(data['specializations'])
+      specialization: data['specializations'] != null
+          ? List<String>.from(data['specialization'])
           : <String>[],
       location: '',
     );
@@ -90,7 +90,7 @@ class Doctor {
       'isVerified': isVerified,
       'workingAt': workingAt,
       'status': status,
-      'specializations': specializations,
+      'specializations': specialization,
     };
   }
 

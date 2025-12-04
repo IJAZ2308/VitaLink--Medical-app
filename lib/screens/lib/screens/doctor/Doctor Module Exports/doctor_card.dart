@@ -196,11 +196,11 @@ class _DoctorCardState extends State<DoctorCard> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        if (widget.doctor.specializations.isNotEmpty)
+                        if (widget.doctor.specialization.isNotEmpty)
                           Wrap(
                             spacing: 6,
                             runSpacing: -4,
-                            children: widget.doctor.specializations
+                            children: widget.doctor.specialization
                                 .map(
                                   (spec) => Chip(
                                     label: Text(

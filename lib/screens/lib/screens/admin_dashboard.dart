@@ -545,7 +545,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const ManagePatientsScreen(),
+                    builder: (_) => ManagePatientsScreen(
+                      patientId: '',
+                      patientName: '',
+                      doctorId: '',
+                    ),
                   ),
                 ),
               ),

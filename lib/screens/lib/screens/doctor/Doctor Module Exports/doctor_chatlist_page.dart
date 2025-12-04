@@ -18,7 +18,7 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
   );
   final DatabaseReference _patientsDb = FirebaseDatabase.instance.ref().child(
     'users',
-  ); // updated to 'users' for patients
+  );
 
   List<Patient> _chatList = [];
   bool _isLoading = true;
@@ -36,7 +36,6 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
 
     try {
       final DataSnapshot snapshot = await _chatListDb.child(doctorId).get();
-
       List<Patient> tempChatList = [];
 
       if (snapshot.exists && snapshot.value != null) {
@@ -50,7 +49,27 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
             final patientData = Map<String, dynamic>.from(
               patientSnapshot.value as Map,
             );
-            tempChatList.add(Patient.fromMap(patientData));
+
+            // Only include patients whose consulting doctor exists
+            if (patientData.containsKey('consultingDoctorId') &&
+                (patientData['consultingDoctorId'] as String).isNotEmpty) {
+              // Optionally, you can also check if the consulting doctor is approved/verified
+              final consultingDoctorId =
+                  patientData['consultingDoctorId'] as String;
+              final consultingDoctorSnapshot = await _patientsDb
+                  .child(consultingDoctorId)
+                  .get();
+
+              if (consultingDoctorSnapshot.exists &&
+                  consultingDoctorSnapshot.value != null) {
+                final doctorData = Map<String, dynamic>.from(
+                  consultingDoctorSnapshot.value as Map,
+                );
+                if (doctorData['doctorRole'] == 'consultingDoctor') {
+                  tempChatList.add(Patient.fromMap(patientData));
+                }
+              }
+            }
           }
         }
       }
@@ -117,8 +136,7 @@ class _DoctorChatlistPageState extends State<DoctorChatlistPage> {
                             doctorId: doctorId,
                             patientId: patient.uid,
                             patientName: patientName,
-                            doctorName:
-                                '', // optional, can fetch doctor name if needed
+                            doctorName: '', // optional
                           ),
                         ),
                       );

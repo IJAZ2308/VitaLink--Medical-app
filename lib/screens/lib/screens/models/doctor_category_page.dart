@@ -36,7 +36,7 @@ class _DoctorCategoryPageState extends State<DoctorCategoryPage> {
             )
             .where(
               (doctor) =>
-                  doctor.specializations.contains(widget.specialization) &&
+                  doctor.specialization.contains(widget.specialization) &&
                   doctor.isVerified &&
                   doctor.status == 'approved' &&
                   (doctor.category.isNotEmpty),

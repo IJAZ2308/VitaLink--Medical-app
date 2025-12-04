@@ -425,13 +425,24 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   }
 
   Future<void> _initializeDashboard() async {
-    await _fetchDoctorData();
-    await _fetchAppointments();
-    await _fetchPatients();
+    try {
+      await _fetchDoctorData();
+      await _fetchAppointments();
+      await _fetchPatientsAfterAppointments();
 
-    PushNotificationService.initialize(userId: '', role: '');
-    // ignore: use_build_context_synchronously
-    PushNotificationService.setupFCMListeners(context);
+      final user = _auth.currentUser;
+      if (user != null) {
+        PushNotificationService.initialize(userId: user.uid, role: 'labDoctor');
+        // ignore: use_build_context_synchronously
+        PushNotificationService.setupFCMListeners(context);
+      }
+    } catch (e) {
+      debugPrint("Error initializing dashboard: $e");
+      setState(() {
+        _loadingAppointments = false;
+        _loadingPatients = false;
+      });
+    }
   }
 
   Future<void> _fetchDoctorData() async {
@@ -480,8 +491,13 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
-  Future<void> _fetchPatients() async {
+  Future<void> _fetchPatientsAfterAppointments() async {
     setState(() => _loadingPatients = true);
+
+    if (_appointments.isEmpty) {
+      setState(() => _loadingPatients = false);
+      return;
+    }
 
     final List<Map<String, String>> loadedPatients = [];
     final Map<String, List<Map<String, String>>> loadedReports = {};
@@ -490,7 +506,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       final pid = appt['patientId']!;
       if (pid.isEmpty) continue;
 
-      // Avoid duplicate patients
       if (!loadedPatients.any((p) => p['uid'] == pid)) {
         final patientSnapshot = await _db.child("users/$pid").get();
         if (patientSnapshot.exists) {
@@ -509,7 +524,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
             final rptData = Map<String, dynamic>.from(
               reportsSnapshot.value as Map,
             );
-
             rptData.forEach((key, value) {
               final r = Map<String, dynamic>.from(value);
               patientReports.add({
@@ -531,34 +545,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       _patientReports = loadedReports;
       _loadingPatients = false;
     });
-  }
-
-  // 🔥 FIXED LOGOUT FUNCTION
-  // ignore: unused_element
-  void _logout() async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to log out?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Logout"),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout ?? false) {
-      await _auth.signOut();
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/login');
-    }
   }
 
   void _pickPatientAndUpload() {
@@ -591,11 +577,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-
                     final appt = _appointments.firstWhere(
                       (a) => a['patientId'] == patient['uid'],
                     );
-
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -606,7 +590,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                           appointmentId: appt['id']!,
                         ),
                       ),
-                    ).then((_) => _fetchPatients());
+                    ).then((_) => _fetchPatientsAfterAppointments());
                   },
                 );
               },
@@ -659,6 +643,13 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
         body: (_loadingPatients || _loadingAppointments)
             ? const Center(
                 child: CircularProgressIndicator(color: Colors.white),
+              )
+            : (_patients.isEmpty && _appointments.isEmpty)
+            ? const Center(
+                child: Text(
+                  "No appointments or patients found",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
               )
             : Padding(
                 padding: const EdgeInsets.all(16),

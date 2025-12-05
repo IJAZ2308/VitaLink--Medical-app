@@ -434,8 +434,27 @@ class BedListScreenState extends State<BedListScreen> {
     }
   }
 
-  Future<void> _launchMap(double lat, double lng) async =>
-      _launchUrl("https://www.google.com/maps/search/?api=1&query=$lat,$lng");
+  Future<void> _launchMap(double lat, double lng) async {
+    // Use geo: scheme first to open Google Maps app directly
+    final Uri geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(Hospital)");
+    if (await canLaunchUrl(geoUri)) {
+      await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+    } else {
+      // Fallback to browser if Maps app is not available
+      final Uri webUri = Uri.parse(
+        "https://www.google.com/maps/search/?api=1&query=$lat,$lng",
+      );
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      } else {
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(
+          // ignore: use_build_context_synchronously
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Could not open map.")));
+      }
+    }
+  }
 
   Future<void> _launchCaller(String phoneNumber) async =>
       _launchUrl("tel:$phoneNumber");

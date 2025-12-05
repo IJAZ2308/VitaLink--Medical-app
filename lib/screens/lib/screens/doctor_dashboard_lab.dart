@@ -485,6 +485,8 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       });
     }
 
+    debugPrint("Loaded appointments: ${loadedAppointments.length}");
+
     setState(() {
       _appointments = loadedAppointments;
       _loadingAppointments = false;
@@ -494,16 +496,21 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
   Future<void> _fetchPatientsAfterAppointments() async {
     setState(() => _loadingPatients = true);
 
-    if (_appointments.isEmpty) {
-      setState(() => _loadingPatients = false);
-      return;
-    }
-
     final List<Map<String, String>> loadedPatients = [];
     final Map<String, List<Map<String, String>>> loadedReports = {};
 
+    if (_appointments.isEmpty) {
+      debugPrint("No appointments found for this lab doctor.");
+      setState(() {
+        _patients = loadedPatients;
+        _patientReports = loadedReports;
+        _loadingPatients = false;
+      });
+      return;
+    }
+
     for (var appt in _appointments) {
-      final pid = appt['patientId']!;
+      final pid = appt['patientId'] ?? '';
       if (pid.isEmpty) continue;
 
       if (!loadedPatients.any((p) => p['uid'] == pid)) {
@@ -540,6 +547,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
       }
     }
 
+    debugPrint("Loaded patients: ${loadedPatients.length}");
+    debugPrint("Loaded reports: ${loadedReports.length}");
+
     setState(() {
       _patients = loadedPatients;
       _patientReports = loadedReports;
@@ -549,58 +559,76 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
 
   // PICK PATIENT — FIXED & CLEAN
   void _pickPatientAndUpload() {
+    if (_patients.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("No patients found"),
+          content: const Text(
+            "No patients are assigned to your appointments yet.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Select Patient"),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: _patients.isEmpty
-                ? const Center(
-                    child: Text(
-                      "No patients available",
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _patients.length,
-                    itemBuilder: (context, index) {
-                      final patient = _patients[index];
-                      return ListTile(
-                        title: Text(patient['name']!),
-                        subtitle: Text(
-                          "Reports: ${_patientReports[patient['uid']!]?.length ?? 0}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          final appt = _appointments.firstWhere(
-                            (a) => a['patientId'] == patient['uid'],
-                          );
+      builder: (_) => AlertDialog(
+        title: const Text("Select Patient"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _patients.length,
+            itemBuilder: (context, index) {
+              final patient = _patients[index];
+              final reportCount = _patientReports[patient['uid']!]?.length ?? 0;
 
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => UploadDocumentScreen(
-                                patientId: patient['uid']!,
-                                patientName: patient['name']!,
-                                doctorId: appt['requestingDoctorId']!,
-                                appointmentId: appt['id']!,
-                              ),
-                            ),
-                          ).then((_) => _fetchPatientsAfterAppointments());
-                        },
-                      );
-                    },
-                  ),
+              return ListTile(
+                title: Text(patient['name']!),
+                subtitle: Text(
+                  "Reports: $reportCount",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+
+                  final appt = _appointments.firstWhere(
+                    (a) => a['patientId'] == patient['uid'],
+                    orElse: () => {'id': '', 'requestingDoctorId': ''},
+                  );
+
+                  if (appt['id']!.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("No appointment found")),
+                    );
+                    return;
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UploadDocumentScreen(
+                        patientId: patient['uid']!,
+                        patientName: patient['name']!,
+                        doctorId: appt['requestingDoctorId']!,
+                        appointmentId: appt['id']!,
+                      ),
+                    ),
+                  ).then((_) => _fetchPatientsAfterAppointments());
+                },
+              );
+            },
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

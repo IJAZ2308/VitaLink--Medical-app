@@ -45,10 +45,22 @@
 
     <!-- Query block MUST contain ONLY <intent> -->
     <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT" />
-            <data android:mimeType="text/plain" />
-        </intent>
-    </queries>
+    <!-- Existing query -->
+    <intent>
+        <action android:name="android.intent.action.PROCESS_TEXT" />
+        <data android:mimeType="text/plain" />
+    </intent>
+
+    <!-- Add these to allow opening maps and browsers -->
+    <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="geo" />
+    </intent>
+    <intent>
+        <action android:name="android.intent.action.VIEW" />
+        <data android:scheme="https" />
+    </intent>
+</queries>
+
 
 </manifest>

@@ -1,3 +1,4 @@
+// lib/appointments/lab_appointment_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -5,11 +6,16 @@ import 'package:firebase_database/firebase_database.dart';
 class LabAppointmentListPage extends StatefulWidget {
   const LabAppointmentListPage({
     super.key,
-    required String patientId,
-    required String patientName,
-    required String doctorId,
-    required String doctorName,
+    required this.patientId,
+    required this.patientName,
+    required this.doctorId,
+    required this.doctorName,
   });
+
+  final String patientId;
+  final String patientName;
+  final String doctorId;
+  final String doctorName;
 
   @override
   State<LabAppointmentListPage> createState() => _LabAppointmentListPageState();
@@ -89,6 +95,8 @@ class _LabAppointmentListPageState extends State<LabAppointmentListPage> {
           }
         }
       }
+
+      if (!mounted) return;
 
       setState(() {
         _appointments = loadedAppointments;

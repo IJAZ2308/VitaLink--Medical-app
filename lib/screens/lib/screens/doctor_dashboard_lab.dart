@@ -106,7 +106,12 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           if (pData['reports'] != null) {
             final Map<dynamic, dynamic> reportsMap = Map<String, dynamic>.from(
               pData['reports'],
-            );
+                      );
+                    }
+                  }
+                }
+              }
+            }
             reportsMap.forEach((key, report) {
               final reportData = Map<String, dynamic>.from(report);
               patientReports.add({
@@ -557,7 +562,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
-  // PICK PATIENT — FIXED & CLEAN
   void _pickPatientAndUpload() {
     if (_patients.isEmpty) {
       showDialog(
@@ -605,7 +609,7 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                     orElse: () => {'id': '', 'requestingDoctorId': ''},
                   );
 
-                  if (appt['id']!.isEmpty) {
+                  if ((appt['id'] ?? '').isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("No appointment found")),
                     );
@@ -674,13 +678,6 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
         body: (_loadingPatients || _loadingAppointments)
             ? const Center(
                 child: CircularProgressIndicator(color: Colors.white),
-              )
-            : (_patients.isEmpty && _appointments.isEmpty)
-            ? const Center(
-                child: Text(
-                  "No appointments or patients found",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
               )
             : Padding(
                 padding: const EdgeInsets.all(16),

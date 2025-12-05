@@ -371,12 +371,19 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     );
 
     if (confirm == true) {
-      await _dbRef.child(appointmentId).remove();
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Appointment cancelled")));
+      try {
+        await _dbRef.child(appointmentId).remove();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Appointment cancelled")),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error cancelling appointment: $e")),
+          );
+        }
       }
     }
   }
@@ -408,16 +415,48 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
       pickedTime.minute,
     );
 
-    await _dbRef.child(appointmentId).update({
-      'dateTime': newDateTime.toIso8601String(),
-      'updatedAt': DateTime.now().toIso8601String(),
-      'status': 'pending',
-    });
+    try {
+      await _dbRef.child(appointmentId).update({
+        'dateTime': newDateTime.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'status': 'pending',
+        'confirmedByDoctor': false, // reset confirmation if rescheduled
+      });
 
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Appointment rescheduled")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Appointment rescheduled")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error rescheduling appointment: $e")),
+        );
+      }
+    }
+  }
+
+  // ---------- CONFIRM APPOINTMENT (Doctor) ----------
+  Future<void> _confirmAppointment(String appointmentId) async {
+    try {
+      await _dbRef.child(appointmentId).update({
+        'confirmedByDoctor': true,
+        'status': 'confirmed',
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Appointment confirmed by doctor")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error confirming appointment: $e")),
+        );
+      }
     }
   }
 
@@ -489,6 +528,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                 data.forEach((key, value) {
                   final appt = Map<String, dynamic>.from(value);
 
+                  // Filter for current patient
                   if (appt['patientId'] == _currentUser.uid) {
                     appt['id'] = key;
                     appointments.add(appt);
@@ -539,16 +579,10 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                     final status = _getStatus(appt, apptDateTime);
                     final statusColor = _getStatusColor(appt, apptDateTime);
 
-                    // -------------------
-                    // UPDATED CONDITIONS
-                    // -------------------
-                    final isConfirmed = appt['confirmedByDoctor'] == true
-                        ? true
-                        : false;
+                    final isConfirmed = appt['confirmedByDoctor'] == true;
 
                     final canReschedule =
                         apptDateTime.isAfter(DateTime.now()) && !isConfirmed;
-
                     final canCancel =
                         apptDateTime.isAfter(DateTime.now()) && !isConfirmed;
 
@@ -571,6 +605,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // ---------- RESCHEDULE ----------
                             IconButton(
                               icon: const Icon(
                                 Icons.edit_calendar,
@@ -579,13 +614,29 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                               onPressed: canReschedule
                                   ? () => _pickNewDateTime(appt['id'])
                                   : null,
+                              tooltip: "Reschedule",
                             ),
+
+                            // ---------- CANCEL ----------
                             IconButton(
                               icon: const Icon(Icons.cancel, color: Colors.red),
                               onPressed: canCancel
                                   ? () => _cancelAppointment(appt['id'])
                                   : null,
+                              tooltip: "Cancel",
                             ),
+
+                            // ---------- CONFIRM (Doctor) ----------
+                            if (!isConfirmed)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.blue,
+                                ),
+                                onPressed: () =>
+                                    _confirmAppointment(appt['id']),
+                                tooltip: "Confirm",
+                              ),
                           ],
                         ),
                       ),

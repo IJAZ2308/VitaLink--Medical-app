@@ -34,12 +34,22 @@ class _DoctorAppointmentsRealtimePageState
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
   }
 
-  /// Update status in Realtime DB (e.g., Pending, Confirmed, Completed, Cancelled)
+  /// Update status in Realtime DB (Pending, Completed, Cancelled)
   Future<void> _updateStatus(String appointmentId, String newStatus) async {
-    await _dbRef.child(appointmentId).update({
-      'status': newStatus,
-      'updatedAt': DateTime.now().toIso8601String(),
-    });
+    if (newStatus == 'Confirmed') {
+      // For Confirmed, update confirmedByDoctor as well
+      await _dbRef.child(appointmentId).update({
+        'status': 'Confirmed',
+        'confirmedByDoctor': true,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } else {
+      await _dbRef.child(appointmentId).update({
+        'status': newStatus,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -108,7 +118,10 @@ class _DoctorAppointmentsRealtimePageState
     );
 
     if (confirm == true) {
-      await _dbRef.child(appointmentId).remove();
+      await _dbRef.child(appointmentId).update({
+        'status': 'Cancelled',
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -195,8 +208,6 @@ class _DoctorAppointmentsRealtimePageState
                   final Map<String, dynamic> appt = Map<String, dynamic>.from(
                     value as Map,
                   );
-                  // If doctorName field contains doctor uid or doctorId field exists, check appropriately.
-                  // We'll check for doctorId first, fallback to doctorName match.
                   final matchesDoctor =
                       (appt['doctorId'] != null &&
                           appt['doctorId'] == _currentDoctor.uid) ||
@@ -270,10 +281,16 @@ class _DoctorAppointmentsRealtimePageState
                         statusColor = Colors.orange;
                     }
 
-                    final bool canCancel = dt.isAfter(DateTime.now());
-                    final bool canReschedule = dt.isAfter(
-                      DateTime.now().add(const Duration(hours: 1)),
-                    );
+                    // Disable actions if cancelled/completed
+                    final bool canCancel =
+                        dt.isAfter(DateTime.now()) &&
+                        status.toLowerCase() != 'cancelled';
+                    final bool canReschedule =
+                        dt.isAfter(
+                          DateTime.now().add(const Duration(hours: 1)),
+                        ) &&
+                        status.toLowerCase() != 'cancelled' &&
+                        status.toLowerCase() != 'completed';
 
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -343,11 +360,9 @@ class _DoctorAppointmentsRealtimePageState
                                       color: Colors.grey.shade100,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Icon(Icons.more_vert, size: 18),
-                                      ],
+                                    child: const Icon(
+                                      Icons.more_vert,
+                                      size: 18,
                                     ),
                                   ),
                                 ),
@@ -369,15 +384,18 @@ class _DoctorAppointmentsRealtimePageState
                                         : null,
                                     tooltip: "Reschedule",
                                   ),
-                                  if (canCancel)
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.cancel,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () => _cancelAppointment(id),
-                                      tooltip: "Cancel",
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.cancel,
+                                      color: canCancel
+                                          ? Colors.red
+                                          : Colors.grey,
                                     ),
+                                    onPressed: canCancel
+                                        ? () => _cancelAppointment(id)
+                                        : null,
+                                    tooltip: "Cancel",
+                                  ),
                                 ],
                               ),
                             ],

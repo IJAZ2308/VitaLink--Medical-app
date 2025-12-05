@@ -155,25 +155,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void _listenCounts() {
-    // 🔹 Listen to all users
     _dbRef.child('users').onValue.listen((event) {
       if (event.snapshot.value != null) {
         final map = Map<String, dynamic>.from(event.snapshot.value as Map);
 
-        int docCount = 0,
-            patientCount = 0,
-            consultingCount = 0,
-            labCount = 0,
-            pendingCount = 0;
+        int docCount = 0;
+        int consultingCount = 0;
+        int labCount = 0;
+        int pendingCount = 0;
+        int patientCount = 0;
 
         map.forEach((key, value) {
           final user = Map<String, dynamic>.from(value);
+
           final role = (user['role'] ?? '').toString().toLowerCase();
           final status = (user['status'] ?? '').toString().toLowerCase();
+
+          /// Dynamic category resolver
           final category =
               (user['category'] ?? user['specialization'] ?? user['type'] ?? '')
                   .toString()
-                  .toLowerCase();
+                  .toLowerCase()
+                  .trim();
 
           if (role == 'patient') {
             patientCount++;
@@ -182,9 +185,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
             if (status == 'pending') pendingCount++;
 
-            if (category.contains('consult')) {
-              consultingCount++;
-            } else if (category.contains('lab')) {
+            /// Dynamic category check
+            if (category.contains("lab")) {
               labCount++;
             } else {
               consultingCount++;
@@ -192,17 +194,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
           }
         });
 
+        /// Update UI
         setState(() {
           totalDoctors = docCount;
-          totalPatients = patientCount;
           consultingDoctors = consultingCount;
           labDoctors = labCount;
           pendingDoctors = pendingCount;
+          totalPatients = patientCount;
         });
       }
     });
 
-    // 🔹 Listen to hospitals
+    // Hospitals dynamic
     _dbRef.child('hospitals').onValue.listen((event) {
       setState(() {
         totalHospitals = event.snapshot.value != null
@@ -211,7 +214,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       });
     });
 
-    // 🔹 Listen to appointments
+    // Appointments dynamic
     _dbRef.child('appointments').onValue.listen((event) {
       setState(() {
         totalAppointments = event.snapshot.value != null

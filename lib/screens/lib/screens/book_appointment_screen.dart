@@ -57,6 +57,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
   }
 
+  // -------------------------------
+  // Convert String -> TimeOfDay
+  // -------------------------------
+  TimeOfDay _parseTime(String formatted) {
+    final parts = formatted.split(" ");
+    final hm = parts[0].split(":");
+
+    int hour = int.parse(hm[0]);
+    int minute = int.parse(hm[1]);
+    final period = parts[1];
+
+    if (period == "PM" && hour != 12) hour += 12;
+    if (period == "AM" && hour == 12) hour = 0;
+
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
   List<String> _generateTimeSlots() {
     List<String> slots = [];
     for (int hour = 0; hour < 24; hour++) {
@@ -67,17 +84,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     return slots;
   }
 
+  // -------------------------------
+  // Correct slot check
+  // -------------------------------
   bool _isSlotBooked(TimeOfDay time) {
-    // Check if any slot on the selected date is booked
-    final isAnySlotBookedOnDate = _bookedSlots.any(
+    return _bookedSlots.any(
       (slot) =>
           slot.year == _selectedDate.year &&
           slot.month == _selectedDate.month &&
-          slot.day == _selectedDate.day,
+          slot.day == _selectedDate.day &&
+          slot.hour == time.hour &&
+          slot.minute == time.minute,
     );
-
-    // Disable all slots if any slot on this date is already booked
-    return isAnySlotBookedOnDate;
   }
 
   Future<void> _bookAppointment() async {
@@ -132,7 +150,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Appointment booked successfully!")),
       );
-      if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -161,7 +178,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Doctor Info
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -183,7 +199,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Reason
               TextFormField(
                 controller: _reasonController,
                 decoration: const InputDecoration(
@@ -196,7 +211,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Date Picker
               Row(
                 children: [
                   Expanded(
@@ -215,7 +229,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       if (picked != null && mounted) {
                         setState(() {
                           _selectedDate = picked;
-                          _selectedTime = null; // reset time when date changes
+                          _selectedTime = null;
                         });
                       }
                     },
@@ -225,7 +239,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Time Slots Grid
               Expanded(
                 child: GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -236,12 +249,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   ),
                   itemCount: timeSlots.length,
                   itemBuilder: (context, index) {
-                    final time = timeSlots[index];
-                    final isBooked = _isSlotBooked(
-                      time as TimeOfDay,
-                    ); // now disables all if one booked
-                    // ignore: unrelated_type_equality_checks
-                    final isSelected = _selectedTime == time;
+                    final timeString = timeSlots[index];
+                    final slotTime = _parseTime(timeString);
+
+                    final isBooked = _isSlotBooked(slotTime);
+                    final isSelected = _selectedTime == slotTime;
 
                     return GestureDetector(
                       onTap: isBooked
@@ -249,7 +261,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           : () {
                               if (!mounted) return;
                               setState(() {
-                                _selectedTime = time as TimeOfDay?;
+                                _selectedTime = slotTime;
                               });
                             },
                       child: Container(
@@ -263,7 +275,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          time,
+                          timeString,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -275,7 +287,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 ),
               ),
 
-              // Book Button
               _isLoading
                   ? const CircularProgressIndicator()
                   : SizedBox(

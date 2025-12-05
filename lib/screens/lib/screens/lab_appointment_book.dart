@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-import 'package:dr_shahin_uk/services/notification_service.dart'; // ✅ ADDED
+import 'package:dr_shahin_uk/services/notification_service.dart';
 
 class LabAppointmentPage extends StatefulWidget {
   final String patientId;
   final String patientName;
 
+  final String doctorId; // ✔ who is booking
+  final String doctorName; // ✔ who is booking
+
   const LabAppointmentPage({
     super.key,
     required this.patientId,
     required this.patientName,
-    required String doctorId,
-    required String doctorName,
+    required this.doctorId,
+    required this.doctorName,
   });
 
   @override
@@ -52,6 +55,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
     _fetchLabDoctors();
   }
 
+  // ***************************
+  // FETCH ONLY LAB DOCTORS
+  // ***************************
   void _fetchLabDoctors() async {
     final snapshot = await _doctorsRef.get();
 
@@ -59,9 +65,15 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
 
     if (snapshot.exists) {
       final data = snapshot.value as Map<dynamic, dynamic>;
+
       data.forEach((key, value) {
-        if (value['type'] == 'lab') {
-          loadedDoctors.add({'id': key, 'name': value['name'] ?? 'Unknown'});
+        final role = value['doctorRole']?.toString().toLowerCase();
+
+        if (role == 'labdoctor') {
+          loadedDoctors.add({
+            'id': key,
+            'name': value['firstName'] ?? 'Unknown',
+          });
         }
       });
     }
@@ -117,11 +129,23 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
     final timeStr = _selectedTime!.format(context);
 
     final newApptRef = _dbRef.push();
+
     await newApptRef.set({
       'patientId': widget.patientId,
       'patientName': widget.patientName,
-      'doctorId': _selectedLabDoctorId,
-      'doctorName': _selectedLabDoctorName,
+
+      // -------------------------------------
+      // ✔ doctor who booked the appointment
+      // -------------------------------------
+      'bookedByDoctorId': widget.doctorId,
+      'bookedByDoctorName': widget.doctorName,
+
+      // -------------------------------------
+      // ✔ selected lab doctor for test
+      // -------------------------------------
+      'labDoctorId': _selectedLabDoctorId,
+      'labDoctorName': _selectedLabDoctorName,
+
       'appointmentDate': dateStr,
       'timeSlot': timeStr,
       'testType': _selectedTest ?? "Lab Test",
@@ -130,9 +154,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       'createdAt': DateTime.now().toIso8601String(),
     });
 
-    // -----------------------------------------------------------
-    // 🔔 PUSH NOTIFICATION BLOCK ADDED (NO STRUCTURE CHANGED)
-    // -----------------------------------------------------------
+    // ----------------------------
+    // SEND PUSH NOTIFICATION
+    // ----------------------------
     final doctorTokenSnapshot = await FirebaseDatabase.instance
         .ref()
         .child("doctors/$_selectedLabDoctorId/fcmToken")
@@ -147,12 +171,13 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
         "${widget.patientName} booked a lab appointment on $dateStr at $timeStr.",
       );
     }
-    // -----------------------------------------------------------
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Lab appointment booked successfully")),
     );
+
     Navigator.pop(context);
   }
 
@@ -167,6 +192,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
             ListTile(title: Text("Patient: ${widget.patientName}")),
             const SizedBox(height: 16),
 
+            // ---------------------------
+            // LAB DOCTOR DROPDOWN
+            // ---------------------------
             DropdownButtonFormField<String>(
               value: _selectedLabDoctorId,
               hint: const Text("Select Lab Doctor"),
@@ -198,6 +226,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               onChanged: (val) => setState(() => _selectedTest = val),
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
+
             const SizedBox(height: 16),
 
             TextField(
@@ -209,6 +238,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
                 hintText: "Enter details if any",
               ),
             ),
+
             const SizedBox(height: 16),
 
             Row(
@@ -236,6 +266,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
                 ),
               ],
             ),
+
             const SizedBox(height: 24),
 
             ElevatedButton(

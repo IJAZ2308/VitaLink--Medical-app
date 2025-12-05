@@ -52,7 +52,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   void initState() {
     super.initState();
-    _loadCounts();
+    _listenCounts();
     _loadAppointments();
     _listenPendingDoctors();
   }
@@ -151,6 +151,73 @@ class _AdminDashboardState extends State<AdminDashboard> {
     setState(() {
       appointments = tmp;
       _isLoadingAppointments = false;
+    });
+  }
+
+  void _listenCounts() {
+    // 🔹 Listen to all users
+    _dbRef.child('users').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final map = Map<String, dynamic>.from(event.snapshot.value as Map);
+
+        int docCount = 0,
+            patientCount = 0,
+            consultingCount = 0,
+            labCount = 0,
+            pendingCount = 0;
+
+        map.forEach((key, value) {
+          final user = Map<String, dynamic>.from(value);
+          final role = (user['role'] ?? '').toString().toLowerCase();
+          final status = (user['status'] ?? '').toString().toLowerCase();
+          final category =
+              (user['category'] ?? user['specialization'] ?? user['type'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+          if (role == 'patient') {
+            patientCount++;
+          } else if (role == 'doctor') {
+            docCount++;
+
+            if (status == 'pending') pendingCount++;
+
+            if (category.contains('consult')) {
+              consultingCount++;
+            } else if (category.contains('lab')) {
+              labCount++;
+            } else {
+              consultingCount++;
+            }
+          }
+        });
+
+        setState(() {
+          totalDoctors = docCount;
+          totalPatients = patientCount;
+          consultingDoctors = consultingCount;
+          labDoctors = labCount;
+          pendingDoctors = pendingCount;
+        });
+      }
+    });
+
+    // 🔹 Listen to hospitals
+    _dbRef.child('hospitals').onValue.listen((event) {
+      setState(() {
+        totalHospitals = event.snapshot.value != null
+            ? (event.snapshot.value as Map).length
+            : 0;
+      });
+    });
+
+    // 🔹 Listen to appointments
+    _dbRef.child('appointments').onValue.listen((event) {
+      setState(() {
+        totalAppointments = event.snapshot.value != null
+            ? (event.snapshot.value as Map).length
+            : 0;
+      });
     });
   }
 

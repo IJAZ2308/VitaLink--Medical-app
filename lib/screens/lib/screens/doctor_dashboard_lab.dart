@@ -547,16 +547,8 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
+  // PICK PATIENT — FIXED & CLEAN
   void _pickPatientAndUpload() {
-    if (_patients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No patients with appointments assigned."),
-        ),
-      );
-      return;
-    }
-
     showDialog(
       context: context,
       builder: (_) {
@@ -564,37 +556,48 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           title: const Text("Select Patient"),
           content: SizedBox(
             width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _patients.length,
-              itemBuilder: (context, index) {
-                final patient = _patients[index];
-                return ListTile(
-                  title: Text(patient['name']!),
-                  subtitle: Text(
-                    "Reports: ${_patientReports[patient['uid']!]?.length ?? 0}",
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    final appt = _appointments.firstWhere(
-                      (a) => a['patientId'] == patient['uid'],
-                    );
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => UploadDocumentScreen(
-                          patientId: patient['uid']!,
-                          patientName: patient['name']!,
-                          doctorId: appt['requestingDoctorId']!,
-                          appointmentId: appt['id']!,
+            child: _patients.isEmpty
+                ? const Center(
+                    child: Text(
+                      "No patients available",
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _patients.length,
+                    itemBuilder: (context, index) {
+                      final patient = _patients[index];
+                      return ListTile(
+                        title: Text(patient['name']!),
+                        subtitle: Text(
+                          "Reports: ${_patientReports[patient['uid']!]?.length ?? 0}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
-                      ),
-                    ).then((_) => _fetchPatientsAfterAppointments());
-                  },
-                );
-              },
-            ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          final appt = _appointments.firstWhere(
+                            (a) => a['patientId'] == patient['uid'],
+                          );
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UploadDocumentScreen(
+                                patientId: patient['uid']!,
+                                patientName: patient['name']!,
+                                doctorId: appt['requestingDoctorId']!,
+                                appointmentId: appt['id']!,
+                              ),
+                            ),
+                          ).then((_) => _fetchPatientsAfterAppointments());
+                        },
+                      );
+                    },
+                  ),
           ),
         );
       },

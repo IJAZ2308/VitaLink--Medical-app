@@ -107,8 +107,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final String role = data['role'] ?? '';
       final bool isVerified = data['isVerified'] == true;
 
-      // Optional: block unverified patients/admins if needed
-      if (!isVerified) {
+      // Only block unverified patients (skip for admin)
+      if (!isVerified && role != 'admin') {
         // ignore: use_build_context_synchronously
         await _onLoginSuccess(context);
         Navigator.pushReplacement(

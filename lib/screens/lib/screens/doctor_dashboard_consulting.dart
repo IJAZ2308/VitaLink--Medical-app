@@ -1,3 +1,4 @@
+import 'package:dr_shahin_uk/screens/doctor_patients_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -6,7 +7,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_book.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/lab_appointment_listpage.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/logout_helper.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/manage_patients_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/doctor_appointments_screen.dart';
 import 'doctor/Doctor Module Exports/doctor_chatlist_page.dart';
@@ -194,7 +194,7 @@ class _ConsultingDoctorDashboardState extends State<ConsultingDoctorDashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ManagePatientsScreen(
+                        builder: (_) => DoctorPatientsPage(
                           patientId: patient['uid']!,
                           patientName: patient['name']!,
                           doctorId: doctorId,

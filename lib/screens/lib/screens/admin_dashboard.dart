@@ -155,7 +155,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void _listenCounts() {
-    _dbRef.child('users').onValue.listen((event) {
+    // Listen only to 'doctors' node
+    _dbRef.child('doctors').onValue.listen((event) {
       if (event.snapshot.value != null) {
         final map = Map<String, dynamic>.from(event.snapshot.value as Map);
 
@@ -163,43 +164,55 @@ class _AdminDashboardState extends State<AdminDashboard> {
         int consultingCount = 0;
         int labCount = 0;
         int pendingCount = 0;
-        int patientCount = 0;
 
         map.forEach((key, value) {
-          final user = Map<String, dynamic>.from(value);
+          final doctor = Map<String, dynamic>.from(value);
 
-          final role = (user['role'] ?? '').toString().toLowerCase();
-          final status = (user['status'] ?? '').toString().toLowerCase();
-
-          /// Dynamic category resolver
+          final status = (doctor['status'] ?? '').toString().toLowerCase();
           final category =
-              (user['category'] ?? user['specialization'] ?? user['type'] ?? '')
+              (doctor['category'] ??
+                      doctor['specialization'] ??
+                      doctor['type'] ??
+                      '')
                   .toString()
                   .toLowerCase()
                   .trim();
 
-          if (role == 'patient') {
-            patientCount++;
-          } else if (role == 'doctor') {
-            docCount++;
+          docCount++;
 
-            if (status == 'pending') pendingCount++;
+          if (status == 'pending') pendingCount++;
 
-            /// Dynamic category check
-            if (category.contains("lab")) {
-              labCount++;
-            } else {
-              consultingCount++;
-            }
+          // Categorize doctors dynamically
+          if (category.contains("lab")) {
+            labCount++;
+          } else {
+            consultingCount++;
           }
         });
 
-        /// Update UI
+        // Update UI for doctors only
         setState(() {
           totalDoctors = docCount;
           consultingDoctors = consultingCount;
           labDoctors = labCount;
           pendingDoctors = pendingCount;
+        });
+      }
+    });
+
+    // Patients count (still from users node)
+    _dbRef.child('users').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final map = Map<String, dynamic>.from(event.snapshot.value as Map);
+        int patientCount = 0;
+
+        map.forEach((key, value) {
+          final user = Map<String, dynamic>.from(value);
+          final role = (user['role'] ?? '').toString().toLowerCase();
+          if (role == 'patient') patientCount++;
+        });
+
+        setState(() {
           totalPatients = patientCount;
         });
       }
@@ -532,14 +545,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 children: [
-                  if (_doctorFilter == "all" || _doctorFilter == "consulting")
+                  if (_doctorFilter == "all" ||
+                      _doctorFilter == "consultingDoctor")
                     _buildCountCard(
                       "Consulting Doctors",
                       consultingDoctors,
                       Icons.medical_services_outlined,
                       Colors.blue,
                     ),
-                  if (_doctorFilter == "all" || _doctorFilter == "lab")
+                  if (_doctorFilter == "all" || _doctorFilter == "labDoctor")
                     _buildCountCard(
                       "Lab Doctors",
                       labDoctors,

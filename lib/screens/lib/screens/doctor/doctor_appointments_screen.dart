@@ -36,19 +36,14 @@ class _DoctorAppointmentsRealtimePageState
 
   /// Update status in Realtime DB (Pending, Completed, Cancelled)
   Future<void> _updateStatus(String appointmentId, String newStatus) async {
+    final Map<String, dynamic> updateData = {
+      'status': newStatus,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
     if (newStatus == 'Confirmed') {
-      // For Confirmed, update confirmedByDoctor as well
-      await _dbRef.child(appointmentId).update({
-        'status': 'Confirmed',
-        'confirmedByDoctor': true,
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
-    } else {
-      await _dbRef.child(appointmentId).update({
-        'status': newStatus,
-        'updatedAt': DateTime.now().toIso8601String(),
-      });
+      updateData['confirmedByDoctor'] = true;
     }
+    await _dbRef.child(appointmentId).update(updateData);
 
     if (mounted) {
       ScaffoldMessenger.of(
@@ -57,7 +52,7 @@ class _DoctorAppointmentsRealtimePageState
     }
   }
 
-  /// Reschedule: pick new date/time then update the appointment's dateTime
+  /// Reschedule appointment
   Future<void> _rescheduleAppointment(String appointmentId) async {
     DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -95,7 +90,7 @@ class _DoctorAppointmentsRealtimePageState
     }
   }
 
-  /// Cancel appointment (delete node)
+  /// Cancel appointment
   Future<void> _cancelAppointment(String appointmentId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -130,7 +125,7 @@ class _DoctorAppointmentsRealtimePageState
     }
   }
 
-  /// Build list of status action choices
+  /// Build status menu items
   List<PopupMenuEntry<String>> _statusMenuItems() {
     return const [
       PopupMenuItem(value: 'Pending', child: Text('Pending')),
@@ -151,7 +146,6 @@ class _DoctorAppointmentsRealtimePageState
       body: Column(
         children: [
           const SizedBox(height: 16),
-          // Filter dropdown (Present / Past / Future)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: DropdownButtonFormField<String>(
@@ -184,8 +178,6 @@ class _DoctorAppointmentsRealtimePageState
             ),
           ),
           const SizedBox(height: 12),
-
-          // Stream of appointments from Realtime DB
           Expanded(
             child: StreamBuilder<DatabaseEvent>(
               stream: _dbRef.onValue,
@@ -202,19 +194,14 @@ class _DoctorAppointmentsRealtimePageState
                 final Map<dynamic, dynamic> raw =
                     snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
-                // Collect only appointments for this doctor
+                // Filter appointments for this doctor
                 final List<Map<String, dynamic>> appointments = [];
                 raw.forEach((key, value) {
                   final Map<String, dynamic> appt = Map<String, dynamic>.from(
                     value as Map,
                   );
-                  final matchesDoctor =
-                      (appt['doctorId'] != null &&
-                          appt['doctorId'] == _currentDoctor.uid) ||
-                      (appt['doctorName'] != null &&
-                          appt['doctorName'] == _currentDoctor.displayName);
-
-                  if (matchesDoctor) {
+                  if (appt['doctorId'] != null &&
+                      appt['doctorId'] == _currentDoctor.uid) {
                     appt['id'] = key;
                     appointments.add(appt);
                   }
@@ -222,7 +209,7 @@ class _DoctorAppointmentsRealtimePageState
 
                 if (appointments.isEmpty) {
                   return const Center(
-                    child: Text("No appointments for this doctor"),
+                    child: Text("No appointments assigned to you"),
                   );
                 }
 
@@ -265,7 +252,6 @@ class _DoctorAppointmentsRealtimePageState
                         appt['patientName'] ?? 'Unknown Patient';
                     final doctorName = appt['doctorName'] ?? '';
 
-                    // status color mapping
                     Color statusColor;
                     switch (status.toLowerCase()) {
                       case 'completed':
@@ -281,7 +267,6 @@ class _DoctorAppointmentsRealtimePageState
                         statusColor = Colors.orange;
                     }
 
-                    // Disable actions if cancelled/completed
                     final bool canCancel =
                         dt.isAfter(DateTime.now()) &&
                         status.toLowerCase() != 'cancelled';
@@ -343,7 +328,6 @@ class _DoctorAppointmentsRealtimePageState
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // status menu
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: PopupMenuButton<String>(
@@ -368,7 +352,6 @@ class _DoctorAppointmentsRealtimePageState
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              // action buttons row
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [

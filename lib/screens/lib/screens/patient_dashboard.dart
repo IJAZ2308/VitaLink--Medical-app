@@ -4,7 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor%20Module%20Exports/doctor_list_page.dart';
+import 'package:dr_shahin_uk/screens/lib/screens/doctor/Doctor Module Exports/doctor_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/patient/appointment_list_page.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/doctor/chat/chat_screen.dart';
 import 'package:dr_shahin_uk/screens/lib/screens/shared_reports_screen.dart';
@@ -17,8 +17,8 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'high_importance_channel', // id
-  'High Importance Notifications', // name
+  'high_importance_channel',
+  'High Importance Notifications',
   description: 'This channel is used for important notifications.',
   importance: Importance.high,
 );
@@ -31,36 +31,41 @@ class PatientDashboard extends StatefulWidget {
 }
 
 class _PatientDashboardState extends State<PatientDashboard> {
-  final user = FirebaseAuth.instance.currentUser;
+  User? user;
 
   @override
   void initState() {
     super.initState();
+    user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/login');
+      });
+      return;
+    }
+
     _setupFCM();
   }
 
   Future<void> _setupFCM() async {
-    // Foreground listener
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showLocalNotification(message);
-    });
+    FirebaseMessaging.onMessage.listen(_showLocalNotification);
+    FirebaseMessaging.onMessageOpenedApp.listen(_showLocalNotification);
 
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      _showLocalNotification(message);
-    });
-
-    // Save FCM token
     String? token = await FirebaseMessaging.instance.getToken();
-    if (token != null && user != null) {
+
+    if (token != null && user?.uid != null) {
       await FirebaseDatabase.instance.ref("users/${user!.uid}").update({
         "fcmToken": token,
       });
+
       debugPrint("🔑 Saved FCM Token: $token");
     }
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
     RemoteNotification? notification = message.notification;
+
     if (notification != null && Platform.isAndroid) {
       final AndroidNotificationDetails androidDetails =
           AndroidNotificationDetails(
@@ -86,6 +91,10 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    if (user == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final userEmail = user?.email ?? 'Patient';
 
     return Scaffold(
@@ -107,7 +116,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 👋 Greeting Card
+            /// 👋 Greeting Card
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -152,12 +161,14 @@ class _PatientDashboardState extends State<PatientDashboard> {
                 ],
               ),
             ),
+
             const SizedBox(height: 25),
             const Text(
               "Your Health Services",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -282,8 +293,12 @@ class _PatientDashboardState extends State<PatientDashboard> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            // ignore: deprecated_member_use
-            colors: [color1.withOpacity(0.85), color2.withOpacity(0.85)],
+            colors: [
+              // ignore: deprecated_member_use
+              color1.withOpacity(0.85),
+              // ignore: deprecated_member_use
+              color2.withOpacity(0.85),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

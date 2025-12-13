@@ -29,6 +29,7 @@ class _RegisterDoctorScreenState extends State<RegisterDoctorScreen> {
   final List<String> _categories = [
     "General Surgery",
     "Orthopaedics",
+    "Dental Surgery",
     "Neurosurgery",
     "Cardiothoracic",
     "Vascular Surgery",

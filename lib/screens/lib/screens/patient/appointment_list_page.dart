@@ -16,16 +16,22 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
   );
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  String _selectedFilter = "Present"; // Today / Past / Future
+  String _selectedFilter = "Present"; // Present / Past / Future
 
+  /// Safely parse appointment date & time
   DateTime _safeParseDateTime(Map<dynamic, dynamic> data) {
     final dateStr = data['appointmentDate'] ?? '';
     final timeStr = data['timeSlot'] ?? '10:00 AM';
+
     DateTime date;
     try {
       date = DateFormat('yyyy-MM-dd').parse(dateStr);
     } catch (_) {
-      date = DateTime.now();
+      try {
+        date = DateFormat('dd MMM yyyy').parse(dateStr);
+      } catch (_) {
+        date = DateTime(2000); // fallback very old
+      }
     }
 
     DateTime time;
@@ -38,6 +44,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
+  /// Status for patient view
   String _getStatus(Map<dynamic, dynamic> data, DateTime apptDateTime) {
     if (data['visited'] == true) return "Visited";
     if (DateTime.now().isBefore(apptDateTime)) return "Pending";
@@ -50,6 +57,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     return Colors.red;
   }
 
+  /// Cancel appointment
   Future<void> _cancelAppointment(String appointmentId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -81,12 +89,18 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     }
   }
 
-  void _pickNewDateTime(String appointmentId) async {
+  /// Edit appointment: date/time + reason
+  Future<void> _editAppointment(String appointmentId, Map apptData) async {
+    DateTime currentDateTime = _safeParseDateTime(apptData);
+    TextEditingController reasonController = TextEditingController(
+      text: apptData['reason'] ?? '',
+    );
+
     DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
+      initialDate: currentDateTime,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 60)),
     );
 
     if (pickedDate == null) return;
@@ -94,7 +108,10 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
     TimeOfDay? pickedTime = await showTimePicker(
       // ignore: use_build_context_synchronously
       context: context,
-      initialTime: const TimeOfDay(hour: 10, minute: 0),
+      initialTime: TimeOfDay(
+        hour: currentDateTime.hour,
+        minute: currentDateTime.minute,
+      ),
     );
 
     if (pickedTime == null) return;
@@ -107,20 +124,47 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
       pickedTime.minute,
     );
 
-    final formattedDate = DateFormat('yyyy-MM-dd').format(newDateTime);
-    final formattedTime = DateFormat.jm().format(newDateTime);
+    // Ask for reason
+    bool reasonUpdated =
+        await showDialog<bool>(
+          // ignore: use_build_context_synchronously
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Update Reason"),
+            content: TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: "Reason for appointment",
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Save"),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!reasonUpdated) return;
 
     await _dbRef.child(appointmentId).update({
-      'appointmentDate': formattedDate,
-      'timeSlot': formattedTime,
-      'status': 'pending',
+      'appointmentDate': DateFormat('yyyy-MM-dd').format(newDateTime),
+      'timeSlot': DateFormat.jm().format(newDateTime),
+      'reason': reasonController.text.trim(),
+      'visited': false,
       'updatedAt': DateTime.now().toIso8601String(),
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Appointment rescheduled")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Appointment updated successfully")),
+      );
     }
   }
 
@@ -138,6 +182,7 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
       body: Column(
         children: [
           const SizedBox(height: 16),
+          // Filter dropdown
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: DropdownButtonFormField<String>(
@@ -163,31 +208,27 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                 ),
               ],
               onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedFilter = value);
-                }
+                if (value != null) setState(() => _selectedFilter = value);
               },
             ),
           ),
           const SizedBox(height: 16),
+
+          // Appointment list
           Expanded(
             child: StreamBuilder<DatabaseEvent>(
               stream: _dbRef.onValue,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
                 if (!snapshot.hasData ||
                     snapshot.data!.snapshot.value == null) {
                   return const Center(child: Text("No appointments found."));
                 }
 
-                final Map<dynamic, dynamic> data =
+                final rawData =
                     snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
                 final List<Map<String, dynamic>> appointments = [];
 
-                data.forEach((key, value) {
+                rawData.forEach((key, value) {
                   final appt = Map<String, dynamic>.from(value);
                   if (appt['patientId'] == _currentUser.uid) {
                     appt['id'] = key;
@@ -195,17 +236,16 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                   }
                 });
 
-                final today = DateTime.now();
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+
                 appointments.retainWhere((appt) {
                   final dt = _safeParseDateTime(appt);
                   final apptDay = DateTime(dt.year, dt.month, dt.day);
-                  final todayDay = DateTime(today.year, today.month, today.day);
-                  if (_selectedFilter == "Present") return apptDay == todayDay;
-                  if (_selectedFilter == "Past") {
-                    return apptDay.isBefore(todayDay);
-                  }
+                  if (_selectedFilter == "Present") return apptDay == today;
+                  if (_selectedFilter == "Past") return apptDay.isBefore(today);
                   if (_selectedFilter == "Future") {
-                    return apptDay.isAfter(todayDay);
+                    return apptDay.isAfter(today);
                   }
                   return true;
                 });
@@ -226,62 +266,52 @@ class _AppointmentListPageState extends State<AppointmentListPage> {
                   itemBuilder: (context, index) {
                     final appt = appointments[index];
                     final apptDateTime = _safeParseDateTime(appt);
-                    final formattedDate = DateFormat(
-                      'dd MMM yyyy, hh:mm a',
-                    ).format(apptDateTime);
-                    final status = _getStatus(appt, apptDateTime);
-                    final statusColor = _getStatusColor(appt, apptDateTime);
-
-                    final canReschedule = apptDateTime.isAfter(
-                      DateTime.now().add(const Duration(hours: 1)),
-                    );
-                    final canCancel = apptDateTime.isAfter(DateTime.now());
 
                     return Card(
                       margin: const EdgeInsets.all(8),
                       child: ListTile(
-                        title: Text(appt['doctorName'] ?? 'Unknown Doctor'),
+                        title: Text(appt['doctorName'] ?? "Unknown Doctor"),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Patient: ${appt['patientName']}"),
+                            Text("Patient: ${appt['patientName'] ?? 'N/A'}"),
                             Text("Reason: ${appt['reason'] ?? 'N/A'}"),
-                            Text("Date & Time: $formattedDate"),
                             Text(
-                              "Status: $status",
-                              style: TextStyle(color: statusColor),
+                              "Date & Time: ${DateFormat('dd MMM yyyy, hh:mm a').format(apptDateTime)}",
+                            ),
+                            Text(
+                              "Status: ${_getStatus(appt, apptDateTime)}",
+                              style: TextStyle(
+                                color: _getStatusColor(appt, apptDateTime),
+                              ),
                             ),
                           ],
                         ),
-                        trailing: SizedBox(
-                          width: 96,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (apptDateTime.isAfter(
+                              DateTime.now().add(const Duration(hours: 1)),
+                            ))
                               IconButton(
-                                icon: Icon(
+                                icon: const Icon(
                                   Icons.edit_calendar,
-                                  color: canReschedule
-                                      ? Colors.green
-                                      : Colors.grey,
+                                  color: Colors.green,
                                 ),
-                                onPressed: canReschedule
-                                    ? () => _pickNewDateTime(appt['id'])
-                                    : null,
-                                tooltip: "Reschedule",
+                                onPressed: () =>
+                                    _editAppointment(appt['id'], appt),
+                                tooltip: "Edit Appointment",
                               ),
-                              if (canCancel)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.cancel,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () =>
-                                      _cancelAppointment(appt['id']),
-                                  tooltip: "Cancel",
+                            if (apptDateTime.isAfter(DateTime.now()))
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.cancel,
+                                  color: Colors.red,
                                 ),
-                            ],
-                          ),
+                                onPressed: () => _cancelAppointment(appt['id']),
+                                tooltip: "Cancel Appointment",
+                              ),
+                          ],
                         ),
                       ),
                     );

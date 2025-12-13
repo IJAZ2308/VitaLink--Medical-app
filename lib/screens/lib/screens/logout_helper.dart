@@ -3,46 +3,50 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class LogoutHelper {
   static Future<void> logout(BuildContext context) async {
+    // Prevent calling when widget is already disposed
     if (!context.mounted) return;
 
-    // Logout confirmation dialog
+    // Show confirmation dialog
     final bool? shouldLogout = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dContext) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Confirm Logout"),
         content: const Text("Are you sure you want to log out?"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dContext).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(dContext).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text("Logout"),
           ),
         ],
       ),
     );
 
-    if (shouldLogout == true) {
-      try {
-        await FirebaseAuth.instance.signOut();
+    // If user cancels or dialog dismissed
+    if (shouldLogout != true) return;
 
-        // Navigate safely after logout
-        if (context.mounted) {
-          Navigator.of(
-            context,
-            rootNavigator: true,
-          ).pushNamedAndRemoveUntil('/login', (_) => false);
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Logout failed: $e")));
-        }
-      }
+    try {
+      // Sign out safely
+      await FirebaseAuth.instance.signOut();
+
+      // Navigate only if context is still valid
+      if (!context.mounted) return;
+
+      Navigator.of(context, rootNavigator: true)
+          .pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      // Handle errors safely
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Logout failed: ${e.toString()}"),
+        ),
+      );
     }
   }
 }

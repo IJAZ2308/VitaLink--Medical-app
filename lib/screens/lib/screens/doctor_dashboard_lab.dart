@@ -562,27 +562,78 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
     });
   }
 
-  void _pickPatientAndUpload() {
-    if (_patients.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("No patients found"),
-          content: const Text(
-            "No patients are assigned to your appointments yet.",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("OK"),
-            ),
-          ],
-        ),
-      );
+  /// Doctor → Patient selection flow for uploading reports
+  void _pickPatientAndUpload() async {
+    // Step 1: Fetch doctors
+    final snapshot = await _db.child("doctors").get();
+    if (!snapshot.exists) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No doctors found.")));
       return;
     }
 
-    showDialog(
+    final doctors = Map<String, dynamic>.from(snapshot.value as Map);
+
+    // Step 2: Select doctor
+    String? selectedDoctorId;
+    await showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Select Doctor"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: doctors.entries.map((entry) {
+              final docId = entry.key;
+              final docName = entry.value['name'] ?? 'Doctor';
+              return ListTile(
+                title: Text(docName),
+                onTap: () {
+                  selectedDoctorId = docId;
+                  Navigator.pop(context);
+                },
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+
+    if (selectedDoctorId == null) return;
+
+    // Step 3: Fetch all patients from users
+    final usersSnapshot = await _db.child("users").get();
+    if (!usersSnapshot.exists) return;
+
+    final allUsers = Map<String, dynamic>.from(usersSnapshot.value as Map);
+
+    final patients = <Map<String, String>>[];
+    allUsers.forEach((uid, data) {
+      final u = Map<String, dynamic>.from(data);
+      if (u['role'] == 'patient') {
+        patients.add({'uid': uid, 'name': u['name'] ?? 'Patient'});
+      }
+    });
+
+    if (patients.isEmpty) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No patients found.")));
+      return;
+    }
+
+    // Step 4: Select patient
+    String? selectedPatientId;
+    String selectedPatientName = "";
+    await showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Select Patient"),
@@ -590,9 +641,9 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
           width: double.maxFinite,
           child: ListView.builder(
             shrinkWrap: true,
-            itemCount: _patients.length,
+            itemCount: patients.length,
             itemBuilder: (context, index) {
-              final patient = _patients[index];
+              final patient = patients[index];
               final reportCount = _patientReports[patient['uid']!]?.length ?? 0;
 
               return ListTile(
@@ -602,35 +653,29 @@ class _LabDoctorDashboardState extends State<LabDoctorDashboard> {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 onTap: () {
+                  selectedPatientId = patient['uid'];
+                  selectedPatientName = patient['name']!;
                   Navigator.pop(context);
-
-                  final appt = _appointments.firstWhere(
-                    (a) => a['patientId'] == patient['uid'],
-                    orElse: () => {'id': '', 'requestingDoctorId': ''},
-                  );
-
-                  if ((appt['id'] ?? '').isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("No appointment found")),
-                    );
-                    return;
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UploadDocumentScreen(
-                        patientId: patient['uid']!,
-                        patientName: patient['name']!,
-                        doctorId: appt['requestingDoctorId']!,
-                        appointmentId: appt['id']!,
-                      ),
-                    ),
-                  ).then((_) => _fetchPatientsAfterAppointments());
                 },
               );
             },
           ),
+        ),
+      ),
+    );
+
+    if (selectedPatientId == null) return;
+
+    // Step 5: Navigate to UploadDocumentScreen
+    Navigator.push(
+      // ignore: use_build_context_synchronously
+      context,
+      MaterialPageRoute(
+        builder: (_) => UploadDocumentScreen(
+          patientId: selectedPatientId!,
+          patientName: selectedPatientName,
+          doctorId: selectedDoctorId!,
+          appointmentId: '', // optional
         ),
       ),
     );

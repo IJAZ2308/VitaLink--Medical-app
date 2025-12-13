@@ -15,6 +15,7 @@ class _DoctorListPageState extends State<DoctorListPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     "doctors",
   );
+
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   List<Doctor> _doctors = [];
@@ -46,24 +47,25 @@ class _DoctorListPageState extends State<DoctorListPage> {
     _fetchDoctors();
   }
 
-  Future<void> _fetchDoctors() async {
-    setState(() => _isLoading = true);
-    final snapshot = await _dbRef.get();
-    List<Doctor> tmpDoctors = [];
+  /// 🔥 REAL-TIME DOCTOR FETCH (FIXED)
+  void _fetchDoctors() {
+    _dbRef.onValue.listen((event) {
+      List<Doctor> tmpDoctors = [];
 
-    if (snapshot.value != null) {
-      final values = snapshot.value as Map<dynamic, dynamic>;
-      values.forEach((key, value) {
-        if (value['status'] == 'approved') {
-          Doctor doctor = Doctor.fromMap(value, key, id: null);
-          tmpDoctors.add(doctor);
-        }
+      if (event.snapshot.value != null) {
+        final values = event.snapshot.value as Map<dynamic, dynamic>;
+
+        values.forEach((key, value) {
+          if (value['status'] == 'approved') {
+            tmpDoctors.add(Doctor.fromMap(value, key, id: null));
+          }
+        });
+      }
+
+      setState(() {
+        _doctors = tmpDoctors;
+        _isLoading = false;
       });
-    }
-
-    setState(() {
-      _doctors = tmpDoctors;
-      _isLoading = false;
     });
   }
 
@@ -216,4 +218,3 @@ class _DoctorListPageState extends State<DoctorListPage> {
     );
   }
 }
-

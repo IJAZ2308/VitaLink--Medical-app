@@ -8,10 +8,14 @@ import 'package:flutter/foundation.dart';
 class ManagePatientsScreen extends StatefulWidget {
   const ManagePatientsScreen({
     super.key,
-    required String patientId,
-    required String patientName,
-    required String doctorId,
+    required this.patientId,
+    required this.patientName,
+    required this.doctorId,
   });
+
+  final String patientId;
+  final String patientName;
+  final String doctorId;
 
   @override
   State<ManagePatientsScreen> createState() => _ManagePatientsScreenState();
@@ -57,7 +61,8 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
         Uri.parse('https://fcm.googleapis.com/fcm/send'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'key=YOUR_SERVER_KEY',
+          'Authorization':
+              'key=YOUR_SERVER_KEY', // Replace with your server key
         },
         body: payload,
       );
@@ -81,81 +86,96 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
 
   // ---------------- VERIFY / DELETE PATIENT ----------------
   void _updateVerification(String patientId, bool isVerified) async {
-    // Update correct field in Firebase
-    await _patientsRef.child(patientId).update({'isVerified': isVerified});
+    try {
+      await _patientsRef.child(patientId).update({'isVerified': isVerified});
 
-    String statusText = isVerified ? 'verified' : 'rejected';
-    await _sendNotification(
-      patientId,
-      "Account $statusText",
-      "Your patient account has been $statusText by the admin.",
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Patient $statusText successfully!')),
+      String statusText = isVerified ? 'verified' : 'rejected';
+      await _sendNotification(
+        patientId,
+        "Account $statusText",
+        "Your patient account has been $statusText by the admin.",
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Patient $statusText successfully!')),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print("Error updating verification: $e");
     }
   }
 
   void _deletePatient(String patientId) async {
-    await _patientsRef.child(patientId).remove();
+    try {
+      await _patientsRef.child(patientId).remove();
 
-    await _sendNotification(
-      patientId,
-      "Account Deleted",
-      "Your patient account has been deleted by the admin.",
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient deleted successfully!')),
+      await _sendNotification(
+        patientId,
+        "Account Deleted",
+        "Your patient account has been deleted by the admin.",
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Patient deleted successfully!')),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print("Error deleting patient: $e");
     }
   }
 
   // ---------------- FETCH PATIENTS ----------------
   Future<List<Map<String, dynamic>>> _fetchPatients() async {
-    final patientsSnapshot = await _patientsRef.get();
-    final appointmentsSnapshot = await _appointmentsRef.get();
+    try {
+      final patientsSnapshot = await _patientsRef.get();
+      final appointmentsSnapshot = await _appointmentsRef.get();
 
-    Map<dynamic, dynamic> patientsMap = {};
-    if (patientsSnapshot.value != null) {
-      patientsMap = patientsSnapshot.value as Map<dynamic, dynamic>;
-    }
-
-    Map<dynamic, dynamic> appointmentsMap = {};
-    if (appointmentsSnapshot.value != null) {
-      appointmentsMap = appointmentsSnapshot.value as Map<dynamic, dynamic>;
-    }
-
-    List<Map<String, dynamic>> patientsList = [];
-
-    for (var entry in patientsMap.entries) {
-      final data = Map<String, dynamic>.from(entry.value as Map);
-
-      // ✅ Only include patients (case-insensitive check)
-      String role = (data['role'] ?? 'patient').toString().toLowerCase();
-      if (role != 'patient') continue;
-
-      data['patientId'] = entry.key;
-
-      // Fix unknown names
-      if (data['name'] == "Unknown") {
-        for (var appt in appointmentsMap.values) {
-          final apptData = Map<String, dynamic>.from(appt);
-          if (apptData['patientId'] == entry.key &&
-              apptData['patientName'] != null) {
-            data['name'] = apptData['patientName'];
-            break;
-          }
-        }
+      Map<dynamic, dynamic> patientsMap = {};
+      if (patientsSnapshot.value != null) {
+        patientsMap = patientsSnapshot.value as Map<dynamic, dynamic>;
       }
 
-      patientsList.add(data);
-    }
+      Map<dynamic, dynamic> appointmentsMap = {};
+      if (appointmentsSnapshot.value != null) {
+        appointmentsMap = appointmentsSnapshot.value as Map<dynamic, dynamic>;
+      }
 
-    return patientsList;
+      List<Map<String, dynamic>> patientsList = [];
+
+      for (var entry in patientsMap.entries) {
+        if (entry.value == null) continue;
+
+        final data = Map<String, dynamic>.from(entry.value as Map);
+
+        // Only include patients (case-insensitive)
+        String role = (data['role'] ?? 'patient').toString().toLowerCase();
+        if (role != 'patient') continue;
+
+        data['patientId'] = entry.key;
+
+        // Fix unknown names using appointments
+        if ((data['name'] ?? 'Unknown') == "Unknown") {
+          for (var apptEntry in appointmentsMap.entries) {
+            final apptData = Map<String, dynamic>.from(apptEntry.value as Map);
+            if (apptData['patientId'] == entry.key &&
+                apptData['patientName'] != null) {
+              data['name'] = apptData['patientName'];
+              break;
+            }
+          }
+        }
+
+        patientsList.add(data);
+      }
+
+      if (kDebugMode) print("Total patients fetched: ${patientsList.length}");
+      return patientsList;
+    } catch (e) {
+      if (kDebugMode) print("Error fetching patients: $e");
+      return [];
+    }
   }
 
   // ---------------- UI ----------------
@@ -169,6 +189,7 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("No patients found"));
           }
@@ -195,7 +216,6 @@ class _ManagePatientsScreenState extends State<ManagePatientsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Email: ${data['email'] ?? 'N/A'}"),
-                      // ✅ Fixed field
                       Text("Verified: ${data['isVerified'] ?? false}"),
                       if (averageRating > 0)
                         Text("Rating: ${averageRating.toStringAsFixed(1)}"),

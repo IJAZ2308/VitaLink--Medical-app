@@ -6,13 +6,15 @@ import 'package:dr_shahin_uk/services/notification_service.dart';
 class LabAppointmentPage extends StatefulWidget {
   final String doctorId; // Doctor who is booking
   final String doctorName; // Doctor who is booking
+  final String patientId; // optional pre-selected patient
+  final String patientName; // optional pre-selected patient name
 
   const LabAppointmentPage({
     super.key,
     required this.doctorId,
     required this.doctorName,
-    required patientId,
-    required String patientName,
+    required this.patientId,
+    required this.patientName,
   });
 
   @override
@@ -23,18 +25,13 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref().child(
     'labAppointments',
   );
-
   final DatabaseReference _doctorsRef = FirebaseDatabase.instance.ref().child(
     'doctors',
   );
-
   final DatabaseReference _usersRef = FirebaseDatabase.instance.ref().child(
     'users',
   );
 
-  // -------------------------------------------------------------------
-  // Variables
-  // -------------------------------------------------------------------
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String? _selectedTest;
@@ -47,7 +44,6 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
 
   final TextEditingController _reasonController = TextEditingController();
 
-  // Lab Test Types
   final List<String> _labTests = [
     "Blood's Imaging Emitting Sound Effects",
     "X-Ray",
@@ -63,6 +59,11 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize with passed patient
+    _selectedPatientId = widget.patientId;
+    _selectedPatientName = widget.patientName;
+
     _fetchLabDoctors();
     _fetchPatients();
   }
@@ -79,12 +80,15 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       final data = snapshot.value as Map<dynamic, dynamic>;
 
       data.forEach((key, value) {
-        final role = value['doctorRole']?.toString().toLowerCase();
-
+        final role = (value['doctorRole'] ?? '')
+            .toString()
+            .toLowerCase()
+            .replaceAll(' ', '');
         if (role == 'labdoctor') {
           loadedDoctors.add({
             'id': key,
-            'name': value['firstName'] ?? 'Unknown',
+            'name': '${value['firstName'] ?? ''} ${value['lastName'] ?? ''}'
+                .trim(),
           });
         }
       });
@@ -108,7 +112,6 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
 
       data.forEach((key, value) {
         final role = value['role']?.toString().toLowerCase();
-
         if (role == 'patient') {
           loadedPatients.add({
             'id': key,
@@ -184,19 +187,13 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
 
     final newApptRef = _dbRef.push();
 
-    // -------------------------------------------------------------------
-    // Save appointment
-    // -------------------------------------------------------------------
     await newApptRef.set({
       'patientId': _selectedPatientId,
       'patientName': _selectedPatientName,
-
       'bookedByDoctorId': widget.doctorId,
       'bookedByDoctorName': widget.doctorName,
-
       'labDoctorId': _selectedLabDoctorId,
       'labDoctorName': _selectedLabDoctorName,
-
       'appointmentDate': dateStr,
       'timeSlot': timeStr,
       'testType': _selectedTest ?? "Lab Test",
@@ -205,9 +202,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
       'createdAt': DateTime.now().toIso8601String(),
     });
 
-    // -------------------------------------------------------------------
     // Send push notification to Lab Doctor
-    // -------------------------------------------------------------------
     final doctorTokenSnapshot = await FirebaseDatabase.instance
         .ref()
         .child("doctors/$_selectedLabDoctorId/fcmToken")
@@ -215,7 +210,6 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
 
     if (doctorTokenSnapshot.exists) {
       final doctorToken = doctorTokenSnapshot.value.toString();
-
       await PushNotificationService.sendPushMessage(
         doctorToken,
         "New Lab Appointment",
@@ -243,9 +237,7 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ------------------------------------------------------------
             // PATIENT DROPDOWN
-            // ------------------------------------------------------------
             DropdownButtonFormField<String>(
               value: _selectedPatientId,
               hint: const Text("Select Patient"),
@@ -265,12 +257,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               },
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-
             const SizedBox(height: 16),
 
-            // ------------------------------------------------------------
             // LAB DOCTOR DROPDOWN
-            // ------------------------------------------------------------
             DropdownButtonFormField<String>(
               value: _selectedLabDoctorId,
               hint: const Text("Select Lab Doctor"),
@@ -290,12 +279,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               },
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-
             const SizedBox(height: 16),
 
-            // ------------------------------------------------------------
             // LAB TEST DROPDOWN
-            // ------------------------------------------------------------
             DropdownButtonFormField<String>(
               value: _selectedTest,
               hint: const Text("Select Lab Test (optional)"),
@@ -305,12 +291,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
               onChanged: (val) => setState(() => _selectedTest = val),
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-
             const SizedBox(height: 16),
 
-            // ------------------------------------------------------------
             // REASON FIELD
-            // ------------------------------------------------------------
             TextField(
               controller: _reasonController,
               maxLines: 2,
@@ -320,12 +303,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
                 hintText: "Enter details if any",
               ),
             ),
-
             const SizedBox(height: 16),
 
-            // ------------------------------------------------------------
             // DATE & TIME PICKERS
-            // ------------------------------------------------------------
             Row(
               children: [
                 Expanded(
@@ -351,12 +331,9 @@ class _LabAppointmentPageState extends State<LabAppointmentPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
 
-            // ------------------------------------------------------------
             // SUBMIT BUTTON
-            // ------------------------------------------------------------
             ElevatedButton(
               onPressed: _bookLabAppointment,
               child: const Text("Book Lab Appointment"),

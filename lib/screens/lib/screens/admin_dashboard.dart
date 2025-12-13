@@ -546,14 +546,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisSpacing: 10,
                 children: [
                   if (_doctorFilter == "all" ||
-                      _doctorFilter == "consultingDoctor")
+                      _doctorFilter == "consulting")
                     _buildCountCard(
                       "Consulting Doctors",
                       consultingDoctors,
                       Icons.medical_services_outlined,
                       Colors.blue,
                     ),
-                  if (_doctorFilter == "all" || _doctorFilter == "labDoctor")
+                  if (_doctorFilter == "all" || _doctorFilter == "lab")
                     _buildCountCard(
                       "Lab Doctors",
                       labDoctors,

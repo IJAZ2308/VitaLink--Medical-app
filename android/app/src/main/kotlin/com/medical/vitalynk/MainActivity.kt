@@ -1,4 +1,4 @@
-package com.example.dr_shahin_uk
+package com.medical.vitalynk
 
 import io.flutter.embedding.android.FlutterActivity
 

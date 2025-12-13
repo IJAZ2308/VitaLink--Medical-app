@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:943831581906:android:b167968dd14d55d1e5d90b",
         "android_client_info": {
-          "package_name": "com.example.dr_shahin_uk"
+          "package_name": "com.medical.vitalynk"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "943831581906-h7lr810bkn34tprded7mnu1ton2duil8.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.dr_shahin_uk",
+            "package_name": "com.medical.vitalynk",
             "certificate_hash": "a67cef9941faaec708039b9faf102ca0562549d8"
           }
         },
